@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Biddly (local)",
+      "Group": "Biddly",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "biddly",
+      "Username": "biddly",
+      "SSLMode": "prefer"
+    }
+  }
+}

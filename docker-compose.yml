@@ -1,0 +1,48 @@
+# Local development infrastructure.
+#   docker compose up -d        -> start PostgreSQL (and pgAdmin) in the background
+#   docker compose down         -> stop containers, KEEP data
+#   docker compose down -v      -> stop containers and DELETE the database volume
+#
+# The backend and frontend run on your machine for now (fast reload while learning).
+# They get their own containers in Milestone 9.
+
+name: biddly
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: biddly-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-biddly}
+      POSTGRES_USER: ${POSTGRES_USER:-biddly}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-biddly}
+      TZ: UTC
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: biddly-pgadmin
+    profiles: ["tools"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@biddly.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - ./infrastructure/docker/pgadmin-servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
