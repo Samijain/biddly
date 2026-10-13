@@ -28,6 +28,8 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 - **Exercises:** `exercises/01-js-auction-simulator` (Challenge 1).
 - **Docs:** README, roadmap, development log, challenges, product requirements, business rules, user stories, architecture, database design and a PostgreSQL primer.
 
+- Published to <https://github.com/Samijain/biddly>.
+
 ### Changed
 
 - Default ports moved to 8081 (backend) and 5180 (frontend) to avoid clashing with other local apps on 8080/5173.

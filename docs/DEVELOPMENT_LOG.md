@@ -105,6 +105,22 @@ npm install -D vitest jsdom @testing-library/react @testing-library/jest-dom @te
 4. **TypeScript: `theme.vars` possibly undefined.** MUI needs `import type {} from '@mui/material/themeCssVarsAugmentation'` when CSS variables are enabled.
 5. **oxlint `react(purity)` warnings**: `Date.now()` during render. Fixed with a module constant and a lazy `useState` initializer.
 
+#### 10. Published to GitHub
+
+Repository: <https://github.com/Samijain/biddly> (public).
+
+```powershell
+gh auth login                     # added the personal account next to the work account
+gh auth switch -u Samijain
+git config user.name  "Samyak Jain"                                   # repo-local identity
+git config user.email "60084970+Samijain@users.noreply.github.com"    # GitHub noreply address, keeps the real email private
+gh repo create Samijain/biddly --public --source . --remote origin --push
+git config credential.https://github.com.username Samijain           # Git Credential Manager always uses the personal account for this repo
+gh auth switch -u kj185108_DFH    # CLI back to the work account
+```
+
+> Why repo-local config? The work and personal accounts live on the same machine. Global settings stay on the work identity; only this repository uses the personal one.
+
 ### Next session
 
 1. You: Challenges 1, 2 and 3 (see [CHALLENGES.md](CHALLENGES.md)).
