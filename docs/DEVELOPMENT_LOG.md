@@ -158,6 +158,16 @@ gh auth switch -u kj185108_DFH    # CLI back to the work account
 2. "Fixing" a failing test by silently changing the stored price. That hides the problem instead of rejecting the bid.
 3. The error message used a different formula than the check, which would tell users the wrong minimum.
 4. A truthiness guard (`startingPrice && ...`) disabled validation for exactly the values it should reject.
+5. Writing the *valid* condition inside `if (...) throw`, which rejected every good auction. Then using `Number.isFinite(x) && ...` as a gate, which skipped validation for `NaN` and `Infinity`. The fix joins every "something is wrong" check with `||` (De Morgan's law).
+
+### Final validation check (2026-10-27)
+
+| `startingPrice` / `minimumIncrement` | Result |
+|---|---|
+| `0`, `-1`, `NaN`, `"1000"`, `Infinity`, `true`, `null` | rejected |
+| `1000` | accepted |
+
+Milestone 1 complete: 11/11 tests.
 
 ---
 
