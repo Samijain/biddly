@@ -30,12 +30,13 @@ export class BidRejectedError extends Error {
  * @returns {() => string}
  */
 export function createIdGenerator(prefix) {
-  throw new Error('TODO: createIdGenerator')
+  let counter = 0
+  return () => `${prefix}-${++counter}`
 }
 
 // TODO: once createIdGenerator works, uncomment these and use them in createAuction / placeBid.
-// const nextAuctionId = createIdGenerator('auction')
-// const nextBidId = createIdGenerator('bid')
+const nextAuctionId = createIdGenerator('auction')
+const nextBidId = createIdGenerator('bid')
 
 /**
  * TODO: return a new OPEN auction with no bids and currentPrice === startingPrice.
@@ -43,7 +44,19 @@ export function createIdGenerator(prefix) {
  * @param {{ title: string, sellerId: string, startingPrice: number, minimumIncrement: number }} input
  */
 export function createAuction({ title, sellerId, startingPrice, minimumIncrement }) {
-  throw new Error('TODO: createAuction')
+  if (startingPrice <= 0 || minimumIncrement <= 0) {
+    throw new Error('Starting price and minimum increment must be positive numbers')
+  }
+  return {
+    id: nextAuctionId(),
+    title,
+    sellerId,
+    startingPrice,
+    minimumIncrement,
+    currentPrice: startingPrice,
+    status: 'OPEN',
+    bids: [],
+  }
 }
 
 /**
@@ -58,7 +71,22 @@ export function createAuction({ title, sellerId, startingPrice, minimumIncrement
  * @param {Date} [now]
  */
 export function placeBid(auction, bidderId, amount, now = new Date()) {
-  throw new Error('TODO: placeBid')
+ if(auction.status !== 'OPEN') {
+  throw new BidRejectedError('AUCTION_CLOSED', 'Auction is not open')
+ }
+ if(bidderId === auction.sellerId) {
+  throw new BidRejectedError('SELF_BIDDING_NOT_ALLOWED', 'Seller cannot bid on their own auction')
+ }
+ let minimumAmount=auction.bids.length === 0 ? auction.startingPrice : auction.currentPrice + auction.minimumIncrement
+ if(amount < minimumAmount) {
+  throw new BidRejectedError('BID_TOO_LOW', `Amount must be at least ${auction.currentPrice + auction.minimumIncrement}`)
+ }
+
+ return {
+    ...auction,
+    currentPrice: amount,
+    bids: [...auction.bids, { id: nextBidId(), bidderId, amount, placedAt: now }],
+  }
 }
 
 /**
@@ -66,7 +94,10 @@ export function placeBid(auction, bidderId, amount, now = new Date()) {
  * @param {object} auction
  */
 export function getHighestBid(auction) {
-  throw new Error('TODO: getHighestBid')
+  if(auction.bids.length === 0) {
+    return null
+  }
+  return auction.bids.reduce((highest, bid) => bid.amount > highest.amount ? bid : highest, auction.bids[0])
 }
 
 /**
@@ -74,7 +105,13 @@ export function getHighestBid(auction) {
  * @param {object} auction
  */
 export function closeAuction(auction) {
-  throw new Error('TODO: closeAuction')
+  if (auction.status === 'CLOSED') {
+    throw new Error('Auction is already closed')
+  }
+  return {
+    ...auction,
+    status: 'CLOSED',
+  }
 }
 
 /**
@@ -83,5 +120,8 @@ export function closeAuction(auction) {
  * @param {object} auction
  */
 export function getWinner(auction) {
-  throw new Error('TODO: getWinner')
+  if (auction.status === 'OPEN') {
+    throw new Error('Auction is still open')
+  }
+  return getHighestBid(auction)?.bidderId ?? null
 }
