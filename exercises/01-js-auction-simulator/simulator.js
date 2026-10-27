@@ -44,7 +44,7 @@ const nextBidId = createIdGenerator('bid')
  * @param {{ title: string, sellerId: string, startingPrice: number, minimumIncrement: number }} input
  */
 export function createAuction({ title, sellerId, startingPrice, minimumIncrement }) {
-  if (startingPrice <= 0 || minimumIncrement <= 0) {
+  if (startingPrice && minimumIncrement && (startingPrice <= 0 || minimumIncrement <= 0)) {
     throw new Error('Starting price and minimum increment must be positive numbers')
   }
   return {
@@ -77,9 +77,9 @@ export function placeBid(auction, bidderId, amount, now = new Date()) {
  if(bidderId === auction.sellerId) {
   throw new BidRejectedError('SELF_BIDDING_NOT_ALLOWED', 'Seller cannot bid on their own auction')
  }
- let minimumAmount=auction.bids.length === 0 ? auction.startingPrice : auction.currentPrice + auction.minimumIncrement
+ const minimumAmount= auction.bids.length === 0 ? auction.startingPrice : auction.currentPrice + auction.minimumIncrement
  if(amount < minimumAmount) {
-  throw new BidRejectedError('BID_TOO_LOW', `Amount must be at least ${auction.currentPrice + auction.minimumIncrement}`)
+  throw new BidRejectedError('BID_TOO_LOW', `Amount must be at least ${minimumAmount}`)
  }
 
  return {

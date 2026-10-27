@@ -1,0 +1,14 @@
+{
+  "name": "biddly-ts-auction-simulator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc",
+    "check": "tsc && node --test"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "~6.0.3"
+  }
+}
