@@ -22,24 +22,38 @@ export interface Bid {
 
 // TODO 1 - AuctionStatus: exactly 'OPEN' or 'CLOSED'. Use a union of string literals.
 //          (Why not `string`? Look at the `'OPENED'` line in simulator.typecheck.ts.)
-
+export type AuctionStatus = 'OPEN' | 'CLOSED';
 // TODO 2 - BidRejectionCode: the three codes placeBid can reject with.
-
+export type BidRejectionCode = 'AUCTION_CLOSED' | 'SELF_BIDDING_NOT_ALLOWED' | 'BID_TOO_LOW';
 // TODO 3 - The fields every auction has, whatever its status:
 //          id, title, sellerId, startingPrice, minimumIncrement, currentPrice, bids.
 //          Everything readonly. Hint: a readonly property holding an ordinary array still allows
 //          `.push()`. Which array type forbids it?
-
+export interface SharedAuctionFields {
+  readonly id: string
+  readonly title: string
+  readonly sellerId: string
+  readonly startingPrice: number
+  readonly minimumIncrement: number
+  readonly currentPrice: number
+  readonly bids:ReadonlyArray<Bid>
+}
 // TODO 4 - OpenAuction: the shared fields + status 'OPEN'.
-
+export interface OpenAuction extends SharedAuctionFields {
+  readonly status: 'OPEN';
+}
 // TODO 5 - ClosedAuction: the shared fields + status 'CLOSED' + winningBid (a Bid, or null when nobody bid).
-
+export interface ClosedAuction extends SharedAuctionFields {
+  readonly status: 'CLOSED';
+  readonly winningBid: Bid | null;
+}
 // TODO 6 - Auction: either an OpenAuction or a ClosedAuction.
 //          `status` is the "discriminant": checking it tells TypeScript which one you have.
-
+export type Auction = OpenAuction | ClosedAuction;
 // TODO 7 - CreateAuctionInput: the 4 fields createAuction receives.
 //          Derive it from your shared fields with the utility type Pick<...> instead of retyping them.
 //          When a field's type changes later, the input type follows automatically.
-
+export type CreateAuctionInput = Pick<Auction, 'title' | 'sellerId' | 'startingPrice' | 'minimumIncrement'>;
 // TODO 8 - Result<T, E>: a generic type for "it worked, here is a T" OR "it failed, here is an E".
 //          The tests read `result.ok`, `result.value` and `result.error`.
+export type Result<T, E> = { ok: true, value: T } | { ok: false, error: E };

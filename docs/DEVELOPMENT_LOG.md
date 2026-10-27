@@ -188,3 +188,33 @@ Milestone 1 complete: 11/11 tests.
 ### Verified
 
 A reference solution was written in a temporary folder outside the repo, then deleted: `tsc` passed with 0 errors and all 20 tests passed. The exercise is solvable as specified.
+
+---
+
+## Session 5 - 2026-10-27 - Milestone 2: TypeScript simulator completed
+
+### What you built
+
+`types.ts` (all 8 TODOs) and `simulator.ts`, ported from the JavaScript simulator. You did the types, the typed `BidRejectedError`, the `OpenAuction`/`ClosedAuction` signatures and `winningBid` in `closeAuction`. The tutor finished the last steps on request; they're listed below so you can study them.
+
+### Finished by the tutor
+
+| Change | Why |
+|---|---|
+| `BidRejectionCode` = `'AUCTION_CLOSED' \| 'SELF_BIDDING_NOT_ALLOWED' \| 'BID_TOO_LOW'` | Must list the codes `placeBid` actually throws. Typing `code` made the compiler find the mismatch. |
+| `getHighestBid` callback checks `highest === null \|\| ...`, initial value `null` | With a `Bid \| null` accumulator, the first call really gets `null`. `\|\|` short-circuits, so `.amount` is never read on `null`. No empty-array special case needed. |
+| `getWinner(auction: ClosedAuction)` reads `auction.winningBid` | Makes `getWinner(open)` a compile error. The runtime check uses `(auction as Auction).status` so TypeScript allows comparing against `'OPEN'`. |
+| `isOpen(auction): auction is OpenAuction` | A type guard: narrows the type inside `if (isOpen(a))`. |
+| `tryPlaceBid` returns `Result<OpenAuction, BidRejectedError>` | Catches only `BidRejectedError` (checked with `instanceof`, because `catch` gives `unknown`) and rethrows anything else, so real bugs aren't hidden. |
+| `parseCreateAuctionInput(value: unknown)` | Narrows step by step (object, not null, not array), then checks each field and names the bad one in the error. |
+| Explicit return types on `placeBid` and `getHighestBid` | Errors show up in the function, not at every call site. |
+
+### Review questions (your answers, checked)
+
+| Question | Answer |
+|---|---|
+| `unknown` vs `any` | `any` switches checking off, so mistakes only show up at runtime, and it spreads to everything it touches. `unknown` blocks every use until you narrow it. |
+| What `as` does at runtime | Nothing; it's erased. It's a "trust me" to the compiler, not a check. If it's wrong, the bad value travels on and crashes somewhere else. That's why the runtime checks stay. |
+| Throw or `Result` in React | `Result` for expected failures (bid too low): the compiler forces you to check `ok`, and the UI renders from it. Keep throwing for unexpected bugs, which error boundaries and TanStack Query's error state handle. |
+
+Milestone 2 complete: `tsc` 0 errors, 20/20 tests.

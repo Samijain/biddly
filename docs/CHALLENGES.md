@@ -8,7 +8,7 @@ Ask for a hint whenever you are stuck, and ask for a code review when you are fi
 | 1 | Console auction simulator | JavaScript | ✅ Done (2026-10-27): 11/11 tests, edge cases verified |
 | 2 | Create an auction (`AuctionService.createAuction`) | Spring Boot | Open |
 | 3 | Search, filter and sort auctions (`filterAuctions`) | TypeScript / React | Open |
-| 4 | TypeScript domain model (Milestone 2) | TypeScript | Open |
+| 4 | TypeScript domain model (Milestone 2) | TypeScript | Done (2026-10-27) |
 
 ---
 

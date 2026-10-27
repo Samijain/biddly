@@ -34,6 +34,7 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 
 - `exercises/01-js-auction-simulator`: simulator implemented (Challenge 1).
 - `exercises/02-ts-auction-simulator`: TypeScript exercise with runtime tests (`simulator.test.ts`), compile-time tests (`simulator.typecheck.ts`), strict `tsconfig.json`, a guided `types.ts` starter and a README (Challenge 4).
+- `exercises/02-ts-auction-simulator`: domain types and simulator implemented (Challenge 4). `tsc` reports 0 errors and 20/20 tests pass.
 - Root `.gitignore` ignores `node_modules/` in every folder.
 
 ### Changed
