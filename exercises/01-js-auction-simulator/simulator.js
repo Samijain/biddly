@@ -44,7 +44,7 @@ const nextBidId = createIdGenerator('bid')
  * @param {{ title: string, sellerId: string, startingPrice: number, minimumIncrement: number }} input
  */
 export function createAuction({ title, sellerId, startingPrice, minimumIncrement }) {
-  if (startingPrice && minimumIncrement && (startingPrice <= 0 || minimumIncrement <= 0)) {
+  if (Number.isFinite(startingPrice) && Number.isFinite(minimumIncrement) &&(startingPrice <= 0 || minimumIncrement <= 0)) {
     throw new Error('Starting price and minimum increment must be positive numbers')
   }
   return {
