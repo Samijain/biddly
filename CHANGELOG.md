@@ -30,6 +30,12 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 
 - Published to <https://github.com/Samijain/biddly>.
 
+### Added - Milestone 1 and 2 exercises (2026-10-24 to 2026-10-27)
+
+- `exercises/01-js-auction-simulator`: simulator implemented (Challenge 1).
+- `exercises/02-ts-auction-simulator`: TypeScript exercise with runtime tests (`simulator.test.ts`), compile-time tests (`simulator.typecheck.ts`), strict `tsconfig.json`, a guided `types.ts` starter and a README (Challenge 4).
+- Root `.gitignore` ignores `node_modules/` in every folder.
+
 ### Changed
 
 - Default ports moved to 8081 (backend) and 5180 (frontend) to avoid clashing with other local apps on 8080/5173.

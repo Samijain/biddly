@@ -121,8 +121,60 @@ gh auth switch -u kj185108_DFH    # CLI back to the work account
 
 > Why repo-local config? The work and personal accounts live on the same machine. Global settings stay on the work identity; only this repository uses the personal one.
 
-### Next session
+### Next session (as planned on 2026-10-13)
 
 1. You: Challenges 1, 2 and 3 (see [CHALLENGES.md](CHALLENGES.md)).
 2. Answer the open questions in [business-rules.md](business-rules.md#open-questions-for-you).
 3. Then: Milestone 4 completion (publish/cancel auction, OpenAPI docs) and the start of the bids table.
+
+---
+
+## Sessions 2-3 - 2026-10-21 to 2026-10-27 - Milestone 1: JavaScript simulator
+
+### What you built
+
+`exercises/01-js-auction-simulator/simulator.js`: `createIdGenerator`, `createAuction`, `placeBid`, `getHighestBid`, `closeAuction`, `getWinner`. Committed as `c9ec407` and `089d8a5`.
+
+### Concepts learned, in the order they came up
+
+| Concept | Where it appeared |
+|---|---|
+| **Closures** and factory functions | `createIdGenerator` keeps a private `counter` per generator |
+| `counter++` vs `++counter` | First ID was `x-0` instead of `x-1` |
+| References vs copies | `const b = a` shares one function and one counter |
+| **Type coercion** | `"1000" > 0`, `true > 0` and `[5] > 0` are all `true` |
+| `Number.isFinite` vs global `isFinite` | The correct way to validate a number |
+| **Guard clauses** | Check every rule first, then build the result |
+| **Immutability** | `placeBid` returns a new auction; a rejected bid changes nothing |
+| Never rewrite user input | Don't silently raise a bid; accept it exactly or reject it with a reason |
+| `reduce` on an empty array | Returns the initial value, here `undefined` |
+| `?.` and `??` | `getHighestBid(a)?.bidderId ?? null` |
+| One source of truth | `const minimumAmount` used in both the check and the error message |
+| Truthiness pitfalls | `0 && ...` and `NaN && ...` short-circuit, so `x && x <= 0` never rejects 0 or NaN |
+
+### Mistakes worth remembering
+
+1. Using one rule for every bid. The first bid and later bids need different minimums.
+2. "Fixing" a failing test by silently changing the stored price. That hides the problem instead of rejecting the bid.
+3. The error message used a different formula than the check, which would tell users the wrong minimum.
+4. A truthiness guard (`startingPrice && ...`) disabled validation for exactly the values it should reject.
+
+---
+
+## Session 4 - 2026-10-27 - Milestone 2 setup: TypeScript simulator
+
+### What was added
+
+- `exercises/02-ts-auction-simulator/` was already committed in `089d8a5`, with `package.json`, a strict `tsconfig.json`, `simulator.test.ts` (20 runtime tests) and `simulator.typecheck.ts` (compile-time tests using `@ts-expect-error`).
+- This session added `types.ts` (worked `Bid` example + 8 TODOs), `README.md`, and the Challenge 4 brief in [CHALLENGES.md](CHALLENGES.md#challenge-4---typescript-domain-model-milestone-2).
+- `npm install` in the exercise folder (TypeScript 6.0.3, `@types/node`). The root `.gitignore` now ignores `node_modules/` everywhere.
+
+### How it works
+
+- **No build step.** Node 24 strips TypeScript types and runs `.ts` files directly, so `npm test` is plain `node --test`. That's why the tsconfig sets `erasableSyntaxOnly` (no enums or parameter properties) and `allowImportingTsExtensions` (imports end in `.ts`).
+- **Two judges.** `tsc` (`npm run typecheck`) checks the types and never runs anything. `node --test` runs the code and never checks types. `npm run check` runs both.
+- **Compile-time tests.** Every `// @ts-expect-error` line in `simulator.typecheck.ts` *must* be a type error. If your types are too loose, the line compiles and `tsc` reports an "unused directive".
+
+### Verified
+
+A reference solution was written in a temporary folder outside the repo, then deleted: `tsc` passed with 0 errors and all 20 tests passed. The exercise is solvable as specified.
