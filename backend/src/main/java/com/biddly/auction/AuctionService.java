@@ -12,6 +12,7 @@ import com.biddly.category.CategoryRepository;
 import com.biddly.common.PageResponse;
 import com.biddly.common.ResourceNotFoundException;
 import com.biddly.user.UserRepository;
+import com.biddly.common.BusinessRuleException;
 
 @Service
 @Transactional(readOnly = true)
@@ -59,6 +60,21 @@ public class AuctionService {
      */
     @Transactional
     public AuctionResponse createAuction(CreateAuctionRequest request) {
-        throw new UnsupportedOperationException("Creating auctions is CHALLENGE 2 - not implemented yet.");
+        var startTime = request.startTime();
+        var endTime = request.endTime();
+        if (startTime.isBefore(clock.instant())) {
+            throw new BusinessRuleException("START_TIME_IN_PAST","The auction can't start in the past.");
+        }
+        if (!endTime.isAfter(startTime)) {
+            throw new BusinessRuleException("INVALID_TIME_WINDOW","endTime must be after startTime");
+        }
+        var seller = userRepository.findById(request.sellerId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", request.sellerId()));
+        var category = request.categoryId() != null ? categoryRepository.findById(request.categoryId())
+                .orElseThrow(() -> new ResourceNotFoundException("Category", request.categoryId()))
+                : null;
+        var auction = auctionRepository.save(
+            new Auction(seller, category, request.title(), request.description(), request.coverImageUrl(), request.startingPrice(), request.minimumIncrement(), startTime, endTime));
+        return auctionMapper.toResponse(auction, clock.instant());
     }
 }

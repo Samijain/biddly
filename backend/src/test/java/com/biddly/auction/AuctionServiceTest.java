@@ -16,7 +16,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.biddly.auction.dto.CreateAuctionRequest;
@@ -30,7 +29,6 @@ import com.biddly.user.UserRepository;
  * Pure unit tests: no Spring, no database. Dependencies are Mockito mocks and time is frozen.
  * CHALLENGE 2: remove @Disabled once AuctionService.createAuction is implemented.
  */
-@Disabled("CHALLENGE 2 - enable after implementing AuctionService.createAuction")
 class AuctionServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-10-13T10:00:00Z");
@@ -88,8 +86,23 @@ class AuctionServiceTest {
         verify(auctionRepository, never()).save(any());
     }
 
+    @Test
+    void rejectsUnknownCategory() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(new User("Asha", "asha@test.dev")));
+        when(categoryRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.createAuction(request(NOW.plus(1, ChronoUnit.HOURS), NOW.plus(1, ChronoUnit.DAYS), 99L)))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Category 99");
+        verify(auctionRepository, never()).save(any());
+    }
+
     private static CreateAuctionRequest request(Instant start, Instant end) {
-        return new CreateAuctionRequest(1L, null, "Vintage clock", "Brass, 1920s", null,
+        return request(start, end, null);
+    }
+
+    private static CreateAuctionRequest request(Instant start, Instant end, Long categoryId) {
+        return new CreateAuctionRequest(1L, categoryId, "Vintage clock", "Brass, 1920s", null,
                 new BigDecimal("1000.00"), new BigDecimal("50.00"), start, end);
     }
 }

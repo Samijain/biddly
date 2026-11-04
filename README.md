@@ -81,7 +81,7 @@ cd frontend; npm run lint; npm run typecheck
 |---|---|---|
 | GET | `/api/v1/auctions?status=ACTIVE&page=0&size=20` | Done |
 | GET | `/api/v1/auctions/{id}` | Done |
-| POST | `/api/v1/auctions` | **Challenge 2** (returns 501 until implemented) |
+| POST | `/api/v1/auctions` | Done (creates a `DRAFT` auction) |
 | GET | `/api/v1/categories` | Done |
 | GET | `/actuator/health` | Done |
 
