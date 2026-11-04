@@ -6,8 +6,8 @@ Ask for a hint whenever you are stuck, and ask for a code review when you are fi
 | # | Challenge | Area | Status |
 |---|---|---|---|
 | 1 | Console auction simulator | JavaScript | ✅ Done (2026-10-27): 11/11 tests, edge cases verified |
-| 2 | Create an auction (`AuctionService.createAuction`) | Spring Boot | Open |
-| 3 | Search, filter and sort auctions (`filterAuctions`) | TypeScript / React | Open |
+| 2 | Create an auction (`AuctionService.createAuction`) | Spring Boot | ✅ Done (2026-10-30): 5/5 unit tests, verified end to end |
+| 3 | Search, filter and sort auctions (`filterAuctions`) | TypeScript / React | ✅ Done (2026-11-04): 7/7 tests, exhaustive `never` check |
 | 4 | TypeScript domain model (Milestone 2) | TypeScript | Done (2026-10-27) |
 
 ---

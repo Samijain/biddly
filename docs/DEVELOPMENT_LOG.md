@@ -218,3 +218,124 @@ A reference solution was written in a temporary folder outside the repo, then de
 | Throw or `Result` in React | `Result` for expected failures (bid too low): the compiler forces you to check `ok`, and the UI renders from it. Keep throwing for unexpected bugs, which error boundaries and TanStack Query's error state handle. |
 
 Milestone 2 complete: `tsc` 0 errors, 20/20 tests.
+
+---
+
+## Session 6 - 2026-10-29 - Full Product Requirements Document
+
+### Goal
+
+Turn the short product summary into a complete PRD that a reviewer, recruiter or new teammate can read on its own.
+
+### What changed
+
+- `docs/product-requirements.md` was rewritten with 10 sections: document info, purpose and success metrics, personas, user stories, key features, scope, non-functional requirements, tech stack, risks and open questions, and a release plan.
+- The to-do style actions (add, edit, mark done) were translated into auction actions: create a draft, edit a draft, and publish, close or cancel.
+- `docs/user-stories.md` gained six stories so both docs use the same IDs: US-04 (bid history), US-13 (edit draft), US-14 (see the result), US-24 (my bids), US-25 (watchlist) and US-42 (review reported auctions).
+
+### Why
+
+- Each feature in the PRD is tagged with its milestone and the business rules (R1-R14) it depends on, so the PRD, roadmap and business rules can't drift apart silently.
+- The six open questions in `business-rules.md` are linked from the PRD's risks section. They still need your decisions before Milestone 6.
+
+---
+
+## Session 7 - 2026-10-30 - AGENTS.md
+
+### What changed
+
+Added `AGENTS.md` at the repository root. AI coding agents (Cursor, Copilot, Codex and others) read it automatically before working in the repo.
+
+### Why
+
+- **Tutor mode:** agents must not solve open challenges unless asked. They give hints and reviews instead, so the learning stays with you.
+- **Shared conventions:** the layering, `Clock`, `BigDecimal`, Flyway and `ApiError` rules are written down once instead of being re-explained in every chat.
+- **Documentation rule:** every change must update this log and `CHANGELOG.md`.
+- **No unrequested visual changes:** prompted by the earlier unrequested change to the DataGrid header style.
+
+### Decision: minimum first bid (open question 1)
+
+| Case | Minimum valid bid |
+|---|---|
+| No bids yet | `startingPrice` (a bid equal to it is accepted) |
+| At least one bid | `currentPrice + minimumIncrement` |
+
+**Why:** the starting price is the price the seller has already agreed to, so asking for more on the first bid would turn away a valid buyer. The increment exists to beat an *existing* bid. Both simulators (Challenges 1 and 4) already follow this rule and have a test for it. The Milestone 6 bidding engine must follow it too.
+
+Updated: R5 in `business-rules.md`, the PRD bidding section and its open questions, and `AGENTS.md`.
+
+---
+
+## Session 8 - 2026-10-30 - Challenge 2: create an auction
+
+### What you built
+
+`AuctionService.createAuction`, in this order:
+
+1. Reject a start time before "now", read from the injected `Clock` (`START_TIME_IN_PAST`, HTTP 422).
+2. Reject an end time that is not after the start, using `!endTime.isAfter(startTime)` so that "equal" is rejected too (`INVALID_TIME_WINDOW`, HTTP 422).
+3. Load the seller with `findById(...).orElseThrow(...)` (`ResourceNotFoundException`, HTTP 404).
+4. Load the category only if `categoryId` is given (HTTP 404 if it doesn't exist).
+5. Build the `Auction` (its constructor sets `DRAFT` and `currentPrice = startingPrice`), save it, and map the saved entity to an `AuctionResponse`.
+
+The cheap time checks run before any database lookup, so invalid input never reaches `save`.
+
+### Mistakes found in review, and what they taught
+
+| Mistake | Lesson |
+|---|---|
+| `new BusinessRuleException("CODE")` without the import | The only constructor is `(code, message)`; the message is shown to the user. |
+| `endTime.isBefore(startTime)` | Lets `end == start` through. "Must be after" is `!isAfter`. |
+| `isBeforeOrEqual(...)` | Doesn't exist on `Instant` in Java 21: only `isBefore`, `isAfter`, `equals` and `compareTo`. |
+| `!isAfter(...) \|\| isBefore(...)` | The second half is already covered by the first. |
+
+### Tests
+
+- `AuctionServiceTest` enabled. The tutor added `rejectsUnknownCategory` on request. It stubs the seller as existing, so the exception can only come from the category check, and it checks the message (`"Category 99"`) to prove it.
+- `mvnw test`: 9/9 pass (5 unit, 3 integration, 1 context).
+- End-to-end checks against the running backend: valid request returns 201 with a `DRAFT` auction; past start and end equal to start return 422; unknown seller and unknown category return 404. The test auction was deleted afterwards.
+
+### Gotcha: DevTools and `mvnw test`
+
+Running `mvnw test` while `spring-boot:run` is running recompiles `target/classes`. DevTools then restarts the app halfway through and it can come back with no controllers, so every endpoint returns 404. Restart the backend if that happens.
+
+Challenge 2 complete.
+
+---
+
+## Session 9 - 2026-11-04 - Challenge 3: search, filter and sort
+
+### What you built
+
+`filterAuctions(auctions, filter)` in `frontend/src/features/auctions/filterAuctions.ts`, a pure function used by the **Live auctions** page:
+
+1. Normalize the search once (`trim().toLowerCase()`), then keep auctions whose title or description contains it. `description` can be `null`, so it uses `?.` with `?? false`.
+2. Keep only the chosen category; `categorySlug === null` means all categories, and `category` can be `null` too.
+3. Sort with a `switch` over `AuctionSort`. The `default` branch assigns `filter.sort` to a `never` variable, so adding a fifth sort option without a `case` is a compile error.
+
+### Mistakes found in review, and what they taught
+
+| Mistake | Lesson |
+|---|---|
+| `NEWEST` copied from `ENDING_SOON` (`endTime`, ascending) | Copy-paste bugs hide when no test covers the branch. A `sorts by newest first` test was added. |
+| `NEWEST` used `a - b` | `a - b` puts the smaller value first; for "latest first" use `b - a`, as `PRICE_HIGH` does. |
+| `default: return 0` | Silently ignores unhandled options. `never` turns that into a compile error. |
+| `console.log` in the filter and in `AuctionsPage` | Runs on every keystroke and every 10 s poll. Remove before committing. |
+
+### Readability pass (done by the tutor on request)
+
+- `const` instead of `let`; `trimmedFilter` renamed to `query`.
+- The single 300-character condition split into `matchesCategory` and `matchesSearch`.
+- `Date.parse(...)` instead of `new Date(...).getTime()`.
+- `.toSorted(...)` instead of `.sort(...)`, so it's obvious the input is never mutated. (The earlier `.filter().sort()` was already safe, because `filter` returns a new array first.)
+- Removed the "CHALLENGE 3" instructions from the code comments.
+
+### Why the function must not mutate its input
+
+`data.content` is TanStack Query's cached array, shared with `HomePage`. Sorting it in place would silently re-order every component reading that cache.
+
+### Verified
+
+`npm test`: 10/10 (7 for `filterAuctions`). `npm run typecheck` and `npm run lint` are clean.
+
+Challenge 3 and Milestone 3 complete.

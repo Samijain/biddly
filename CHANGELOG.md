@@ -37,6 +37,31 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 - `exercises/02-ts-auction-simulator`: domain types and simulator implemented (Challenge 4). `tsc` reports 0 errors and 20/20 tests pass.
 - Root `.gitignore` ignores `node_modules/` in every folder.
 
+### Added - Product Requirements Document (2026-10-29)
+
+- `docs/product-requirements.md` expanded into a full PRD: purpose, success metrics, personas, user stories, key features (auction lifecycle, bidding, persistence, real-time, auto-close, auth, search), scope, non-functional requirements, tech stack, risks and release plan.
+- `docs/user-stories.md`: new stories US-04, US-13, US-14, US-24, US-25 and US-42.
+
+### Added - AGENTS.md (2026-10-30)
+
+- `AGENTS.md` at the repository root: guidance for AI coding agents (tutor mode, layout, commands, backend and frontend conventions, business rules, documentation rules).
+
+### Added - Challenge 3: search, filter and sort (2026-11-04)
+
+- `filterAuctions`: case-insensitive search on title and description, category filter, and four sort orders (`ENDING_SOON`, `NEWEST`, `PRICE_LOW`, `PRICE_HIGH`) with an exhaustive `never` check. The controls on the **Live auctions** page now work.
+- `filterAuctions.test.ts` enabled, with a new `sorts by newest first` test (7/7; 10/10 frontend tests).
+- Milestone 3 complete.
+
+### Added - Challenge 2: create an auction (2026-10-30)
+
+- `AuctionService.createAuction`: validates the time window (`START_TIME_IN_PAST`, `INVALID_TIME_WINDOW`), checks that the seller and the optional category exist, and saves a `DRAFT` auction. `POST /api/v1/auctions` now returns 201 instead of an error.
+- `AuctionServiceTest` enabled, with a new `rejectsUnknownCategory` test (5/5 pass; 9/9 backend tests).
+- R14 marked as enforced in `business-rules.md`.
+
+### Changed - First-bid rule decided (2026-10-30)
+
+- R5 clarified: the first bid may equal `startingPrice`; later bids must be at least `currentPrice + minimumIncrement`. Open question 1 marked as decided in `business-rules.md` and the PRD; `AGENTS.md` updated.
+
 ### Changed
 
 - Default ports moved to 8081 (backend) and 5180 (frontend) to avoid clashing with other local apps on 8080/5173.
