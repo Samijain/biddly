@@ -24,7 +24,7 @@ stateDiagram-v2
 | R2 | A published auction's price rules (starting price, increment) cannot change | Service | ⏳ |
 | R3 | A seller cannot bid on their own auction | Service (M6) | ⏳ |
 | R4 | A bid must arrive before `endTime`, judged by the **server clock** | Service (M6) | ⏳ |
-| R5 | A bid must be ≥ `currentPrice + minimumIncrement` | Service (M6) | ⏳ |
+| R5 | The first bid must be ≥ `startingPrice` (equal is allowed); every later bid must be ≥ `currentPrice + minimumIncrement` | Service (M6) | ⏳ |
 | R6 | Accepted bids can never be edited or deleted | No update/delete API; DB permissions | ⏳ |
 | R7 | A completed auction has at most one winning bid | Service + partial unique index (M6) | ⏳ |
 | R8 | An auction with no bids closes without a winner | Scheduler (M7) | ⏳ |
@@ -33,7 +33,7 @@ stateDiagram-v2
 | R11 | Money is exact decimal (`NUMERIC(12,2)`), never floating point | Schema + `BigDecimal` | ✅ |
 | R12 | Prices and increments are positive; `end > start`; `current ≥ starting` | DB `CHECK` constraints | ✅ |
 | R13 | A new auction starts in `DRAFT` with `currentPrice = startingPrice` | `Auction` constructor | ✅ |
-| R14 | `startTime` must not be in the past; `endTime` must be after `startTime` | `AuctionService` (Challenge 2) | 🟡 |
+| R14 | `startTime` must not be in the past; `endTime` must be after `startTime` | `AuctionService` (Challenge 2) | ✅ |
 
 ## Concurrency: the most important scenario
 
@@ -53,6 +53,7 @@ The plan for Milestone 6: inside one database transaction, **lock or version** t
 Decide these before Milestone 6, and write your answers here with your reasoning:
 
 1. **First bid:** must it be ≥ `startingPrice`, or ≥ `startingPrice + minimumIncrement`?
+   **Decided (2026-10-30): ≥ `startingPrice`.** A first bid equal to the starting price is valid, because the seller already said they would sell at that price. The increment applies only once there is a bid to beat. See R5.
 2. **Anti-sniping:** if a bid arrives in the last 2 minutes, should `endTime` be extended (as eBay-style "soft close" does)? By how much?
 3. **Self-outbidding:** may the current highest bidder raise their own bid?
 4. **Reserve price:** should sellers be able to set a hidden minimum below which the item isn't sold?
