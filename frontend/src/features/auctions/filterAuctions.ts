@@ -1,9 +1,7 @@
 import type { Auction, AuctionFilter } from './types'
 
 /**
- * CHALLENGE 3 - see docs/CHALLENGES.md.
- *
- * Return a NEW array (never mutate `auctions`) that:
+ * Returns a NEW array (never mutates `auctions`: it is TanStack Query's cached data) that:
  *   1. keeps only auctions whose title or description contains `filter.search`
  *      (case-insensitive, ignoring leading/trailing spaces; an empty search keeps everything)
  *   2. keeps only auctions in `filter.categorySlug` when it is not null
@@ -12,10 +10,31 @@ import type { Auction, AuctionFilter } from './types'
  *        NEWEST      -> latest startTime first
  *        PRICE_LOW   -> lowest currentPrice first
  *        PRICE_HIGH  -> highest currentPrice first
- *
- * Then change `describe.skip` to `describe` in filterAuctions.test.ts and run `npm test`.
  */
 export function filterAuctions(auctions: readonly Auction[], filter: AuctionFilter): Auction[] {
-  void filter
-  return [...auctions]
+  const query = filter.search.trim().toLowerCase()
+
+  return auctions
+    .filter((auction) => {
+      const matchesCategory = filter.categorySlug === null || auction.category?.slug === filter.categorySlug
+      const matchesSearch =
+        auction.title.toLowerCase().includes(query) || (auction.description?.toLowerCase().includes(query) ?? false)
+      return matchesCategory && matchesSearch
+    })
+    .toSorted((a, b) => {
+      switch (filter.sort) {
+        case 'ENDING_SOON':
+          return Date.parse(a.endTime) - Date.parse(b.endTime)
+        case 'NEWEST':
+          return Date.parse(b.startTime) - Date.parse(a.startTime)
+        case 'PRICE_LOW':
+          return a.currentPrice - b.currentPrice
+        case 'PRICE_HIGH':
+          return b.currentPrice - a.currentPrice
+        default: {
+          const unhandledSort: never = filter.sort
+          return unhandledSort
+        }
+      }
+    })
 }

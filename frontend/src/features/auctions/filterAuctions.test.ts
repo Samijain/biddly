@@ -4,8 +4,7 @@ import type { AuctionFilter } from './types'
 
 const base: AuctionFilter = { search: '', categorySlug: null, sort: 'ENDING_SOON' }
 
-// CHALLENGE 3: change `describe.skip` to `describe` once filterAuctions is implemented.
-describe.skip('filterAuctions', () => {
+describe('filterAuctions', () => {
   it('keeps everything for an empty search', () => {
     expect(filterAuctions(mockAuctions, base)).toHaveLength(mockAuctions.length)
   })
@@ -23,6 +22,11 @@ describe.skip('filterAuctions', () => {
   it('sorts by ending soon', () => {
     const ends = filterAuctions(mockAuctions, base).map((a) => Date.parse(a.endTime))
     expect(ends).toEqual([...ends].sort((a, b) => a - b))
+  })
+
+  it('sorts by newest first', () => {
+    const starts = filterAuctions(mockAuctions, { ...base, sort: 'NEWEST' }).map((a) => Date.parse(a.startTime))
+    expect(starts).toEqual([...starts].sort((a, b) => b - a))
   })
 
   it('sorts by price high to low', () => {
