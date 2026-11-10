@@ -339,3 +339,73 @@ Challenge 2 complete.
 `npm test`: 10/10 (7 for `filterAuctions`). `npm run typecheck` and `npm run lint` are clean.
 
 Challenge 3 and Milestone 3 complete.
+
+---
+
+## Session 10 - 2026-11-04 - Challenge 5 starter: publish and cancel
+
+### Why this challenge
+
+A new auction is always a `DRAFT`, and nothing could change that, so created auctions never reached **Live auctions** (your auction 8 was stuck as a draft). Publishing and cancelling finish the seller side of Milestone 4 (US-11, US-12).
+
+### What the tutor prepared
+
+| Layer | Added |
+|---|---|
+| Controller | `POST /api/v1/auctions/{id}/publish` and `/cancel`, returning the updated `AuctionResponse` |
+| Service (stubs) | `publishAuction(id)`, `cancelAuction(id)`: `@Transactional`, throwing `UnsupportedOperationException` (HTTP 501) |
+| Entity (stubs) | `Auction.publish(Instant now)`, `Auction.cancel()` with the rules in Javadoc |
+| Tests (disabled) | `AuctionTest` (6 methods, 9 cases with `@ParameterizedTest` / `@EnumSource`) and `AuctionServiceTest.PublishAndCancel` (4, `@Nested`) |
+| Frontend | `publishAuction` / `cancelAuction` in `api.ts`; a shared `useAuctionAction` mutation hook that writes the response into the detail cache and invalidates every auction query; `AuctionActions` card with a cancel confirmation dialog; status chip coloured by status |
+| Docs | Rules R15-R17, Challenge 5 brief and hints, README API table, roadmap, user stories |
+
+### Design decisions
+
+- **Rules on the entity, not the service** (a "rich domain model"). `Auction` has no `setStatus`, so the only way to change status is through methods that check the rules.
+- **`now` is a parameter** of `publish`, because entities aren't Spring beans and can't have the `Clock` injected. The tests pass a fixed instant.
+- **Action endpoints (`POST /{id}/publish`)** rather than `PATCH {status}`: the client asks for an action, and the server decides the resulting status (`ACTIVE` or `SCHEDULED`).
+- **R10 (no cancelling once bids exist) is deferred to Milestone 6**, because bids don't exist yet.
+- **Ownership checks are deferred to Milestone 5**: until sign-in exists, anyone can publish or cancel.
+
+### Verified
+
+- A reference solution was written temporarily, all 18 Challenge 5 test cases passed, and the stubs were restored. `mvnw clean` was run afterwards so no compiled solution was left in `target/`.
+- Backend: 19 tests, 9 pass and 10 are skipped (Challenge 5). Frontend: 10/10 tests, `typecheck` and `lint` clean.
+
+---
+
+## Session 11 - 2026-11-05 to 2026-11-10 - Challenge 5: publish and cancel completed
+
+### What you built
+
+- `Auction.publish(now)` checks the rules in order and throws before changing anything: not a `DRAFT` gives `AUCTION_NOT_DRAFT`; `!endTime.isAfter(now)` gives `AUCTION_ALREADY_ENDED`; then `!startTime.isAfter(now)` decides `ACTIVE` vs `SCHEDULED`.
+- `Auction.cancel()` rejects `COMPLETED` and `CANCELLED`, otherwise sets `CANCELLED`.
+- `publishAuction` / `cancelAuction` load with `findById(...).orElseThrow(...)`, call the entity method and map the result. `publishAuction` reads the clock once, so the rules and the response use the same instant.
+
+### Mistakes found in review, and what they taught
+
+| Mistake | Lesson |
+|---|---|
+| `status.equals("DRAFT")` | An enum never equals a `String`, so every publish was rejected. Compare enum to enum, ideally with `==` (null-safe). |
+| `endTime.isBefore(now)` and `startTime.isBefore(now)` | Both mishandle the boundary where the time equals `now`. "Not after" is `!x.isAfter(now)`. |
+| `isEqual(...)` on `Instant` | Doesn't compile: `isEqual` exists on `LocalDateTime` and similar types, not on `Instant`. |
+| `Instant.now()` in the service | Bypasses the injected `Clock`, so tests that freeze time can't control it. |
+| Empty `""` error messages | The message reaches the API response; write a sentence for the user. |
+
+### Review questions: key points
+
+1. The status is stored without `save` because of **dirty checking**: `findById` inside `@Transactional` returns a *managed* entity, and Hibernate compares it with its snapshot and writes the `UPDATE` at commit. New objects still need `save`.
+2. `now` is a parameter because entities aren't Spring beans (no injected `Clock`), and because tests need a fixed instant for the boundary cases.
+3. `POST /{id}/publish` is a command: the server decides the resulting status. `PATCH {status}` would let the client choose any status and bypass the lifecycle rules.
+4. Open design question: whether publishing a late draft should move `startTime` to `now`. You prefer moving it (bidders see an accurate start). The code currently keeps the original start time.
+5. The missing rule is ownership (R1, extended to publish and cancel), added with sign-in in Milestone 5.
+
+### Observed while testing
+
+Auctions published before their start time stay `SCHEDULED` even after it passes, because nothing re-checks the clock. The auto-start/auto-close scheduler is part of Milestone 7.
+
+### Verified
+
+Backend: 22/22 tests. Frontend: 10/10 tests, `typecheck` and `lint` clean. Manual checks: publishing an ended draft returns 422 `AUCTION_ALREADY_ENDED`; an unknown ID returns 404; publishing and cancelling from the details page work.
+
+Challenge 5 complete.

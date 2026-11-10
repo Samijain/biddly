@@ -46,6 +46,22 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 
 - `AGENTS.md` at the repository root: guidance for AI coding agents (tutor mode, layout, commands, backend and frontend conventions, business rules, documentation rules).
 
+### Added - Challenge 5: publish and cancel (2026-11-10)
+
+- `Auction.publish(now)`: only a `DRAFT` whose `endTime` is still in the future can be published (`AUCTION_NOT_DRAFT`, `AUCTION_ALREADY_ENDED`); it becomes `ACTIVE` if `startTime` has arrived, otherwise `SCHEDULED`.
+- `Auction.cancel()`: rejects `COMPLETED` and `CANCELLED` auctions (`AUCTION_NOT_CANCELLABLE`); otherwise the auction becomes `CANCELLED`.
+- `AuctionService.publishAuction` / `cancelAuction`: load or 404, delegate to the entity, and return the updated auction. Changes are stored by JPA dirty checking, without `save`. The publish and cancel endpoints now work instead of returning 501.
+- `AuctionTest` and `AuctionServiceTest.PublishAndCancel` enabled (22/22 backend tests).
+- Rules R15-R17 marked as enforced; US-11 and US-12 done.
+
+### Added - Challenge 5 starter: publish and cancel (2026-11-04)
+
+- Endpoints `POST /api/v1/auctions/{id}/publish` and `POST /api/v1/auctions/{id}/cancel` (return 501 until Challenge 5 is solved).
+- Stubs: `Auction.publish(Instant now)`, `Auction.cancel()`, `AuctionService.publishAuction`, `AuctionService.cancelAuction`.
+- Disabled tests: `AuctionTest` (entity lifecycle rules, including parameterized tests) and the nested `PublishAndCancel` group in `AuctionServiceTest`.
+- Frontend: `AuctionActions` card on the details page with **Publish** and **Cancel auction** (with a confirmation dialog), `usePublishAuction` / `useCancelAuction` hooks, and a status chip coloured by status.
+- Business rules R15-R17 and the Challenge 5 brief in `docs/CHALLENGES.md`.
+
 ### Added - Challenge 3: search, filter and sort (2026-11-04)
 
 - `filterAuctions`: case-insensitive search on title and description, category filter, and four sort orders (`ENDING_SOON`, `NEWEST`, `PRICE_LOW`, `PRICE_HIGH`) with an exhaustive `never` check. The controls on the **Live auctions** page now work.

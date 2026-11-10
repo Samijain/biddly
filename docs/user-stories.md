@@ -26,12 +26,12 @@ As a visitor, I want to see every accepted bid in order so that I can trust the 
 As a seller, I want to create an auction with a title, description, image, starting price, minimum increment and time window so that I can sell an item.
 - AC: Saved as DRAFT; invalid input shows a message next to the right field.
 
-**US-11 Publish an auction** (M4)
+**US-11 Publish an auction** (M4 ✅, Challenge 5)
 As a seller, I want to publish my draft so that bidders can see it.
 
-**US-12 Cancel an auction** (M4)
+**US-12 Cancel an auction** (M4 ✅, Challenge 5)
 As a seller, I want to cancel my auction before anyone has bid.
-- AC: Blocked once a valid bid exists (R10).
+- AC: Blocked once a valid bid exists (R10, added in M6 when bids exist).
 
 **US-13 Edit a draft auction** (M4)
 As a seller, I want to change my draft before publishing so that I can fix mistakes.

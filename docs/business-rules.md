@@ -34,6 +34,9 @@ stateDiagram-v2
 | R12 | Prices and increments are positive; `end > start`; `current ≥ starting` | DB `CHECK` constraints | ✅ |
 | R13 | A new auction starts in `DRAFT` with `currentPrice = startingPrice` | `Auction` constructor | ✅ |
 | R14 | `startTime` must not be in the past; `endTime` must be after `startTime` | `AuctionService` (Challenge 2) | ✅ |
+| R15 | Only a `DRAFT` can be published, and only while its `endTime` is still in the future | `Auction.publish` (Challenge 5) | ✅ |
+| R16 | Publishing makes an auction `ACTIVE` if `startTime` has arrived, otherwise `SCHEDULED` | `Auction.publish` (Challenge 5) | ✅ |
+| R17 | A `COMPLETED` or `CANCELLED` auction can't be cancelled | `Auction.cancel` (Challenge 5) | ✅ |
 
 ## Concurrency: the most important scenario
 

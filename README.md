@@ -82,6 +82,8 @@ cd frontend; npm run lint; npm run typecheck
 | GET | `/api/v1/auctions?status=ACTIVE&page=0&size=20` | Done |
 | GET | `/api/v1/auctions/{id}` | Done |
 | POST | `/api/v1/auctions` | Done (creates a `DRAFT` auction) |
+| POST | `/api/v1/auctions/{id}/publish` | Done (`DRAFT` to `ACTIVE` or `SCHEDULED`) |
+| POST | `/api/v1/auctions/{id}/cancel` | Done (to `CANCELLED`) |
 | GET | `/api/v1/categories` | Done |
 | GET | `/actuator/health` | Done |
 

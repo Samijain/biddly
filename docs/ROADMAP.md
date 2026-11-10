@@ -8,7 +8,7 @@ Biddly is built one milestone at a time. A milestone is done only when its code,
 | 1 | JavaScript fundamentals: console auction simulator (Challenge 1) | ✅ Done (2026-10-27) |
 | 2 | TypeScript domain model: convert the simulator to TypeScript (Challenge 4) | ✅ Done |
 | 3 | React UI with mock data: cards, grid, filters, details, countdown | ✅ Done (2026-11-04): UI built, search/filter/sort working (Challenge 3) |
-| 4 | Spring Boot foundation: create auction end to end (Challenge 2), OpenAPI docs | 🟡 Read path and create (Challenge 2) done; edit, publish, cancel and OpenAPI docs open |
+| 4 | Spring Boot foundation: create auction end to end (Challenge 2), OpenAPI docs | 🟡 Read path, create (Challenge 2), publish and cancel (Challenge 5) done; edit and OpenAPI docs open |
 | 5 | Authentication & authorization: register, sign-in, JWT + refresh cookie, roles, ownership | ⏳ |
 | 6 | **Bidding engine**: validation, transactions, locking, idempotency, bid history, winner | ⏳ |
 | 7 | Real-time & Redis: WebSocket/STOMP updates, cache, rate limiting, auto-close scheduler | ⏳ |
