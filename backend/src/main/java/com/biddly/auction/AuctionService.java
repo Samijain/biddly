@@ -1,6 +1,8 @@
 package com.biddly.auction;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -75,6 +77,33 @@ public class AuctionService {
                 : null;
         var auction = auctionRepository.save(
             new Auction(seller, category, request.title(), request.description(), request.coverImageUrl(), request.startingPrice(), request.minimumIncrement(), startTime, endTime));
+        return auctionMapper.toResponse(auction, clock.instant());
+    }
+
+    /**
+     * Publishes an auction (rules R15, R16 live on {@link Auction#publish}).
+     *   1. load it with auctionRepository.findById(id); unknown id -> ResourceNotFoundException("Auction", id)
+     *   2. let the entity apply the rules: auction.publish(now)
+     *   3. return the auction as an AuctionResponse
+     */
+    @Transactional
+    public AuctionResponse publishAuction(Long id) {
+        Auction auction = auctionRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Auction", id));
+        Instant clockNow = clock.instant();
+        auction.publish(clockNow);
+        return auctionMapper.toResponse(auction, clockNow);
+    }
+
+    /**
+     * Cancels an auction (rule R17 lives on {@link Auction#cancel}).
+     *   1. load it with auctionRepository.findById(id); unknown id -> ResourceNotFoundException("Auction", id)
+     *   2. let the entity apply the rules: auction.cancel()
+     *   3. return the auction as an AuctionResponse
+     */
+    @Transactional
+    public AuctionResponse cancelAuction(Long id) {
+        Auction auction= auctionRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Auction", id));
+        auction.cancel();
         return auctionMapper.toResponse(auction, clock.instant());
     }
 }

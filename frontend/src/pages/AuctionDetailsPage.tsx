@@ -19,10 +19,20 @@ import Typography from '@mui/material/Typography'
 import { Link as RouterLink, useParams } from 'react-router'
 
 import { EmptyState } from '../components/EmptyState'
+import { AuctionActions } from '../features/auctions/components/AuctionActions'
 import { AuctionImage } from '../features/auctions/components/AuctionImage'
 import { Countdown } from '../features/auctions/components/Countdown'
 import { useAuction } from '../features/auctions/hooks'
+import type { AuctionStatus } from '../features/auctions/types'
 import { formatDateTime, formatPrice } from '../lib/format'
+
+const statusColor: Record<AuctionStatus, 'default' | 'info' | 'success' | 'error'> = {
+  DRAFT: 'default',
+  SCHEDULED: 'info',
+  ACTIVE: 'success',
+  COMPLETED: 'default',
+  CANCELLED: 'error',
+}
 
 export function AuctionDetailsPage() {
   const { auctionId } = useParams()
@@ -80,7 +90,7 @@ export function AuctionDetailsPage() {
               <Stack spacing={1.5}>
                 <Stack direction="row" spacing={1}>
                   {auction.category && <Chip size="small" label={auction.category.name} />}
-                  <Chip size="small" color="success" variant="outlined" label={auction.status} />
+                  <Chip size="small" color={statusColor[auction.status]} variant="outlined" label={auction.status} />
                 </Stack>
                 <Typography variant="h4" component="h1">
                   {auction.title}
@@ -94,6 +104,8 @@ export function AuctionDetailsPage() {
                   </Typography>
                 </Stack>
               </Stack>
+
+              <AuctionActions auction={auction} />
 
               <Card>
                 <CardContent sx={{ p: 3 }}>

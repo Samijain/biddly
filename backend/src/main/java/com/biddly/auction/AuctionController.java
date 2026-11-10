@@ -48,4 +48,15 @@ public class AuctionController {
         var created = auctionService.createAuction(request);
         return ResponseEntity.created(URI.create("/api/v1/auctions/" + created.id())).body(created);
     }
+
+    /** POST, not PUT/PATCH: the client asks for an action and the server decides the resulting status. */
+    @PostMapping("/{auctionId}/publish")
+    AuctionResponse publish(@PathVariable Long auctionId) {
+        return auctionService.publishAuction(auctionId);
+    }
+
+    @PostMapping("/{auctionId}/cancel")
+    AuctionResponse cancel(@PathVariable Long auctionId) {
+        return auctionService.cancelAuction(auctionId);
+    }
 }

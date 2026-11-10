@@ -3,6 +3,7 @@ package com.biddly.auction;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+import com.biddly.common.BusinessRuleException;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -96,6 +97,36 @@ public class Auction {
         this.startTime = startTime;
         this.endTime = endTime;
         this.status = AuctionStatus.DRAFT;
+    }
+
+    /**
+     * Publishes a draft so bidders can see it. "now" is passed in because an entity is not a Spring bean
+     * and cannot have the Clock injected.
+     *   1. status is not DRAFT          -> BusinessRuleException("AUCTION_NOT_DRAFT", ...)
+     *   2. endTime is not after now     -> BusinessRuleException("AUCTION_ALREADY_ENDED", ...)
+     *   3. startTime is not after now   -> status becomes ACTIVE
+     *      otherwise                    -> status becomes SCHEDULED
+     */
+    public void publish(Instant now) {
+        if(!status.equals(AuctionStatus.DRAFT))
+            throw new BusinessRuleException("AUCTION_NOT_DRAFT","Auction is not in draft status");
+        if(!endTime.isAfter(now))
+            throw new BusinessRuleException("AUCTION_ALREADY_ENDED","Auction end time is not after now");
+
+        status= !startTime.isAfter(now) ? AuctionStatus.ACTIVE : AuctionStatus.SCHEDULED;
+    }
+
+    /**
+     * Cancels an auction that has not finished.
+     *   1. status is COMPLETED or CANCELLED -> BusinessRuleException("AUCTION_NOT_CANCELLABLE", ...)
+     *   2. otherwise                        -> status becomes CANCELLED
+     * Rule R10 (no cancelling once valid bids exist) is added in Milestone 6, when bids exist.
+     */
+    public void cancel() {
+       if(status.equals(AuctionStatus.CANCELLED)||status.equals(AuctionStatus.COMPLETED)){
+           throw new BusinessRuleException("AUCTION_NOT_CANCELLABLE","Auction is already cancelled or completed");
+       }
+       status=AuctionStatus.CANCELLED;
     }
 
     public Long getId() {

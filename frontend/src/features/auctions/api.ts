@@ -24,6 +24,16 @@ export async function fetchAuction(id: number): Promise<Auction> {
   return http<Auction>(`/api/v1/auctions/${id}`)
 }
 
+export async function publishAuction(id: number): Promise<Auction> {
+  if (useMocks) throw new Error('Publishing needs the real backend. Run `npm run dev` instead of `npm run dev:mock`.')
+  return http<Auction>(`/api/v1/auctions/${id}/publish`, { method: 'POST' })
+}
+
+export async function cancelAuction(id: number): Promise<Auction> {
+  if (useMocks) throw new Error('Cancelling needs the real backend. Run `npm run dev` instead of `npm run dev:mock`.')
+  return http<Auction>(`/api/v1/auctions/${id}/cancel`, { method: 'POST' })
+}
+
 export async function fetchCategories(): Promise<CategorySummary[]> {
   if (useMocks) return mockCategories
   return http<CategorySummary[]>('/api/v1/categories')

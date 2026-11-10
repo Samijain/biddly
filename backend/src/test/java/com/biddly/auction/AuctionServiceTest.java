@@ -16,6 +16,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import com.biddly.auction.dto.CreateAuctionRequest;
@@ -27,7 +28,6 @@ import com.biddly.user.UserRepository;
 
 /**
  * Pure unit tests: no Spring, no database. Dependencies are Mockito mocks and time is frozen.
- * CHALLENGE 2: remove @Disabled once AuctionService.createAuction is implemented.
  */
 class AuctionServiceTest {
 
@@ -95,6 +95,51 @@ class AuctionServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Category 99");
         verify(auctionRepository, never()).save(any());
+    }
+
+    @Nested
+    class PublishAndCancel {
+
+        @Test
+        void publishesAndReturnsTheNewStatus() {
+            when(auctionRepository.findById(5L)).thenReturn(Optional.of(draft(NOW.plus(1, ChronoUnit.HOURS))));
+
+            var response = service.publishAuction(5L);
+
+            assertThat(response.status()).isEqualTo(AuctionStatus.SCHEDULED);
+        }
+
+        @Test
+        void rejectsPublishingAnUnknownAuction() {
+            when(auctionRepository.findById(5L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.publishAuction(5L))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining("Auction 5");
+        }
+
+        @Test
+        void cancelsAndReturnsTheNewStatus() {
+            when(auctionRepository.findById(5L)).thenReturn(Optional.of(draft(NOW.plus(1, ChronoUnit.HOURS))));
+
+            var response = service.cancelAuction(5L);
+
+            assertThat(response.status()).isEqualTo(AuctionStatus.CANCELLED);
+        }
+
+        @Test
+        void rejectsCancellingAnUnknownAuction() {
+            when(auctionRepository.findById(5L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.cancelAuction(5L))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining("Auction 5");
+        }
+
+        private static Auction draft(Instant start) {
+            return new Auction(new User("Asha", "asha@test.dev"), null, "Vintage clock", "Brass, 1920s", null,
+                    new BigDecimal("1000.00"), new BigDecimal("50.00"), start, start.plus(1, ChronoUnit.DAYS));
+        }
     }
 
     private static CreateAuctionRequest request(Instant start, Instant end) {
