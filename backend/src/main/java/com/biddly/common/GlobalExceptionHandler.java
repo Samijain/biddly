@@ -7,6 +7,7 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -33,6 +34,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessRuleException.class)
     ResponseEntity<ApiError> handleBusinessRule(BusinessRuleException ex) {
         return respond(HttpStatus.UNPROCESSABLE_CONTENT, ApiError.of(ex.getCode(), ex.getMessage(), now()));
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    ResponseEntity<ApiError> handleOptimsiticLockingFailure(OptimisticLockingFailureException ex){
+        return respond(HttpStatus.CONFLICT, ApiError.of("CONCURRENT_UPDATE", "Someone else updated this auction at the same moment. Refresh and try again.", now()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

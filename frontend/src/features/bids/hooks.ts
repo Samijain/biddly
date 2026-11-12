@@ -20,11 +20,12 @@ export function useBids(auctionId: number) {
 /**
  * A bid changes the auction's price and leader, and every list that shows it.
  * The bid list sits under the auction's detail key, so invalidating auctionKeys.all refreshes it too.
+ * A rejected bid refreshes as well: "too low" or a conflict usually means someone else just bid.
  */
 export function usePlaceBid(auctionId: number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: PlaceBidInput) => placeBid(auctionId, input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: auctionKeys.all }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: auctionKeys.all }),
   })
 }

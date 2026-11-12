@@ -40,6 +40,7 @@ stateDiagram-v2
 | R18 | Only a `DRAFT` can be edited. An edit re-checks R14 and resets `currentPrice` to the new `startingPrice` | `AuctionService.updateAuction`, `Auction.updateDetails` (Challenge 6) | ✅ |
 | R19 | Only an `ACTIVE` auction accepts bids. Checks run in a fixed order (not active, closed, self-bid, too low) so the user sees the most basic problem first | `Auction.acceptBid` (Challenge 7) | ✅ |
 | R20 | A rejected bid is never stored; an accepted bid, the new price and the new leader are saved in one transaction | `BidService.placeBid` (`@Transactional`) (Challenge 7) | ✅ |
+| R21 | When bids race, exactly one wins. The others get a clear answer (`409 CONCURRENT_UPDATE` or `422 BID_TOO_LOW`), never a `500` | `@Version` on `Auction`, `GlobalExceptionHandler`, `SELECT ... FOR UPDATE` in `placeBid` (Challenge 8) | ✅ |
 
 ## Concurrency: the most important scenario
 
@@ -54,7 +55,12 @@ A writes current = 1100             B writes current = 1200
 
 The plan for Milestone 6: inside one database transaction, **lock or version** the auction row, re-read the price, validate, insert the bid, update the price, commit, and only then publish the update. You will compare `SELECT ... FOR UPDATE` (pessimistic) with `@Version` (optimistic).
 
-**Where we are after Challenge 7:** `Auction` already has `@Version`, so the scenario above can't corrupt data. The second commit runs `UPDATE ... WHERE version = 0`, changes zero rows, and its whole transaction (bid included) rolls back. But the losing bidder gets a **500** instead of a clear answer. Fixing that is Challenge 8.
+**Decided in Challenge 8 (2026-11-12): both, in layers.**
+
+- **Bids take a pessimistic lock.** `placeBid` loads the auction with `AuctionRepository.findByIdForUpdate` (`SELECT ... FOR UPDATE`). Bids on one auction queue up in arrival order, and each is judged against the previous winner's price. The losers get `422 BID_TOO_LOW` with the new minimum. This is the right fit for many bidders on one row, such as the last seconds of a popular auction.
+- **`@Version` stays as the safety net** for every writer that doesn't take the lock: draft edits, cancel, and the future scheduler. When it fires, `GlobalExceptionHandler` answers `409 CONCURRENT_UPDATE` instead of a 500.
+- **Keep the locked transaction short.** It holds the row lock and a database connection. Slow side effects (emails, notifications, WebSocket pushes) run **after commit**, never inside `placeBid`.
+- `BidConcurrencyIntegrationTest` proves it: 8 simultaneous bids give one winner, seven 422s, no 409s and no 500s, and the price, the leader and the history agree.
 
 ## Open questions for you
 

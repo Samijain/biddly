@@ -12,6 +12,7 @@ Ask for a hint whenever you are stuck, and ask for a code review when you are fi
 | 5 | Publish and cancel an auction (`Auction.publish`, `Auction.cancel`) | Spring Boot / JPA | ✅ Done (2026-11-10): 22/22 backend tests, verified end to end |
 | 6 | Edit a draft auction (`AuctionService.updateAuction`, `Auction.updateDetails`) | Spring Boot / JPA | ✅ Done (2026-11-12): 35/35 backend tests, shared validation refactor |
 | 7 | Place a bid (`Auction.acceptBid`, `BidService.placeBid`) | Spring Boot / JPA | ✅ Done (2026-11-12): 56/56 backend tests, verified end to end |
+| 8 | Concurrent bids: optimistic vs pessimistic locking | Spring Boot / JPA / PostgreSQL | ✅ Done (2026-11-12): 59/59 backend tests, 8-bidder race tests against PostgreSQL |
 
 ---
 
@@ -338,3 +339,78 @@ Hint 2
 Hint 3
 
 `leadingBidder` is `null` until the first accepted bid. That tells you which minimum applies.
+
+---
+
+## Challenge 8 - Concurrent bids (Spring Boot / JPA / PostgreSQL)
+
+**Files:**
+
+- Part 1: `backend/src/main/java/com/biddly/common/GlobalExceptionHandler.java`
+- Part 2: `backend/src/main/java/com/biddly/auction/AuctionRepository.java` and `backend/src/main/java/com/biddly/bid/BidService.java`
+
+**Tests:** `BidConcurrencyIntegrationTest` sends 8 real HTTP bids at one auction at the same instant.
+
+- `keepsThePriceAndTheHistoryInAgreement` already passes. Read it first: it proves `@Version` keeps the *data* safe today.
+- Remove `@Disabled` from `tellsTheLosersWhatHappenedInsteadOfFailing` after part 1.
+- Remove `@Disabled` from `aPessimisticLockMakesBiddersWaitTheirTurn` after part 2.
+
+**Run:** `cd backend; .\mvnw.cmd test -Dtest=BidConcurrencyIntegrationTest` (stop the running backend first, or restart it afterwards).
+
+**How the test forces a race:** races normally depend on luck. The test swaps in a server clock that pauses for half a second, and `placeBid` reads the clock right *after* loading the auction. So all 8 requests have loaded the same version of the auction before any of them can commit.
+
+Ready for you: the bid panel already shows a friendly warning for a `CONCURRENT_UPDATE` error, and refreshes the price after any rejected bid.
+
+### What happens today
+
+Your review answer 4 from Challenge 7, run for real. The first commit wins. The other 7 run `UPDATE auctions ... WHERE version = 0`, change zero rows, and Hibernate throws `ObjectOptimisticLockingFailureException`. Their transactions roll back, bids included. The data is correct, but each loser gets **500 "Something went wrong"**.
+
+### Part 1 - Optimistic locking: answer with 409
+
+In `GlobalExceptionHandler`, handle Spring's `OptimisticLockingFailureException` (package `org.springframework.dao`). Return:
+
+- status **409 Conflict**
+- code `CONCURRENT_UPDATE`
+- a message a bidder understands, for example "Someone else updated this auction at the same moment. Refresh and try again."
+
+The code is `CONCURRENT_UPDATE`, not `BID_CONFLICT`. The handler is global, so it would also catch two simultaneous edits of a draft.
+
+**Acceptance:** exactly one bid wins. Every other bidder gets 409 `CONCURRENT_UPDATE` or 422 `BID_TOO_LOW`, never a 500, and only one bid row is stored.
+
+### Part 2 - Pessimistic locking: make bidders wait their turn
+
+1. In `AuctionRepository`, add `Optional<Auction> findByIdForUpdate(Long id)`. Annotate it with `@Lock(LockModeType.PESSIMISTIC_WRITE)` and a `@Query` that selects the auction by id. Hibernate then sends `SELECT ... FOR UPDATE`.
+2. Use it in `BidService.placeBid` instead of `findById`.
+3. `BidServiceTest` mocks `findById`, so 4 of its tests will fail. Update those stubs: mocks are tied to the exact method the code calls.
+
+**Acceptance:** exactly one bid wins and the other 7 get 422 `BID_TOO_LOW`, with **no 409s at all**. Each request waits for the lock, then sees the winner's new price and leader.
+
+When both parts pass, the full suite should be 59/59.
+
+### Learn first
+
+- **Optimistic vs pessimistic:** "detect the collision and fail" vs "prevent the collision by queueing". What does each cost when 2 people bid? When 500 do?
+- **What `@Version` does in SQL:** watch the `UPDATE` and its `WHERE version = ?`. Why does Hibernate know the update failed?
+- **`SELECT ... FOR UPDATE` in PostgreSQL:** which rows does it lock, and until when? What happens to a second transaction that asks for the same row?
+- **Transaction boundaries:** the optimistic exception is thrown at **commit**, after `placeBid` has returned. Why can't a `try/catch` inside `placeBid` catch it?
+- **Deadlocks and lock timeouts:** what would happen if one transaction locked auction A then B, and another locked B then A?
+
+### Questions to answer in your PR description
+
+1. With optimistic locking only, why did some losers get 409 and none get 422? With the pessimistic lock, why did they all get 422 instead?
+2. Why does the 409 handler catch every optimistic-locking failure, and why is a generic `CONCURRENT_UPDATE` code the right name for it?
+3. With the pessimistic lock in place, can `@Version` still ever fire on a bid? Should we remove `@Version` from `Auction`? (Think about draft edits.)
+4. The lock is held while the transaction runs. Our test clock pauses for 500 ms. What would a slow step inside `placeBid` (for example, sending an email) do to the other bidders? Where should such work go?
+5. Which strategy would you pick for Biddly's last 10 seconds of a popular auction, and why? Is retrying a 409 automatically on the server a good idea?
+
+Hint 1
+
+The handler is about 3 lines, like the `BusinessRuleException` handler next to it. `HttpStatus.CONFLICT` is the 409.
+
+Hint 2
+
+Spring Data lets you put `@Lock` on a query method. With JPQL it looks like `@Query("select a from Auction a where a.id = :id")`. Import `Lock` from `org.springframework.data.jpa.repository` and `LockModeType` from `jakarta.persistence`.
+
+Hint 3
+
+If part 2's test still sees 409s, check that `placeBid` really calls the new method, and that the backend you're testing was rebuilt.

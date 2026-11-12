@@ -85,7 +85,7 @@ class BidServiceTest {
         @Test
         void savesTheBidWithTheServerTimeAndUpdatesTheAuction() {
             var auction = liveAuction(NOW.plus(1, ChronoUnit.HOURS));
-            when(auctionRepository.findById(5L)).thenReturn(Optional.of(auction));
+            when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(auction));
             when(userRepository.findById(2L)).thenReturn(Optional.of(rohan));
 
             var response = service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00")));
@@ -105,7 +105,7 @@ class BidServiceTest {
 
         @Test
         void rejectsABidOnAnUnknownAuction() {
-            when(auctionRepository.findById(5L)).thenReturn(Optional.empty());
+            when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00"))))
                     .isInstanceOf(ResourceNotFoundException.class)
@@ -115,7 +115,7 @@ class BidServiceTest {
 
         @Test
         void rejectsABidFromAnUnknownBidder() {
-            when(auctionRepository.findById(5L)).thenReturn(Optional.of(liveAuction(NOW.plus(1, ChronoUnit.HOURS))));
+            when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(liveAuction(NOW.plus(1, ChronoUnit.HOURS))));
             when(userRepository.findById(2L)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00"))))
@@ -126,7 +126,7 @@ class BidServiceTest {
 
         @Test
         void doesNotSaveARejectedBid() {
-            when(auctionRepository.findById(5L)).thenReturn(Optional.of(liveAuction(NOW.plus(1, ChronoUnit.HOURS))));
+            when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(liveAuction(NOW.plus(1, ChronoUnit.HOURS))));
             when(userRepository.findById(2L)).thenReturn(Optional.of(rohan));
 
             assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("10.00"))))
@@ -137,7 +137,7 @@ class BidServiceTest {
 
         @Test
         void judgesLateBidsByTheServerClock() {
-            when(auctionRepository.findById(5L)).thenReturn(Optional.of(liveAuction(NOW)));
+            when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(liveAuction(NOW)));
             when(userRepository.findById(2L)).thenReturn(Optional.of(rohan));
 
             assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00"))))

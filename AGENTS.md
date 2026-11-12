@@ -61,7 +61,7 @@ Use `;` to chain commands, not `&&`. Ports 8080 and 5173 are taken on the dev ma
 
 ## Business rules
 
-The server enforces every rule in [docs/business-rules.md](docs/business-rules.md) (R1-R20); the UI only mirrors them. Key rules:
+The server enforces every rule in [docs/business-rules.md](docs/business-rules.md) (R1-R21); the UI only mirrors them. Key rules:
 
 - Sellers can't bid on their own auctions.
 - The **first** bid must be at least `startingPrice`, so a bid equal to the starting price is valid. Every **later** bid must be at least `currentPrice + minimumIncrement`. Every bid must arrive before `endTime`, by the server clock.

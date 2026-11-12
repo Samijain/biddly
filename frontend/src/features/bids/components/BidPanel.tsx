@@ -98,5 +98,8 @@ function BidError({ error }: { error: Error }) {
   if (error instanceof ApiError && error.code === 'NOT_IMPLEMENTED') {
     return <Alert severity="info">The server can't take bids yet. It's one of your backend challenges!</Alert>
   }
+  if (error instanceof ApiError && error.code === 'CONCURRENT_UPDATE') {
+    return <Alert severity="warning">Someone else bid at the same moment. The price above is now up to date. Check the minimum and try again.</Alert>
+  }
   return <Alert severity="error">{error.message}</Alert>
 }

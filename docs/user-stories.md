@@ -46,7 +46,7 @@ As a seller, I want to see when my auction has closed and who won so that I can 
 **US-20 Place a bid** (M6 🟡)
 As a bidder, I want to place a bid and get an immediate yes/no answer with the reason so that I know where I stand.
 - AC ✅ (Challenge 7): Rejection codes: `AUCTION_NOT_ACTIVE`, `AUCTION_CLOSED`, `SELF_BIDDING_NOT_ALLOWED`, `BID_TOO_LOW`; the `BID_TOO_LOW` message names the minimum.
-- AC (Challenge 8): When two bids race, exactly one wins and the other gets a clear `409` answer, never a `500`.
+- AC ✅ (Challenge 8): When bids race, exactly one wins. The others get a clear answer (`422 BID_TOO_LOW` with the new minimum, or `409 CONCURRENT_UPDATE`), never a `500`.
 - AC: Double-clicking "Place bid" never creates two bids (idempotency key).
 
 **US-21 See live price changes** (M7)

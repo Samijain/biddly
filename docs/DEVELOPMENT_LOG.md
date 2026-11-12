@@ -563,3 +563,83 @@ The final refactor puts the rule in one place: compute `min`, then `if (amount.c
 
 Challenge 7 complete.
 
+---
+
+## Session 16 - 2026-11-12 - Challenge 8 starter: concurrent bids
+
+### Why this challenge
+
+The product requirements name concurrency as Biddly's core risk: "zero inconsistent auctions" with many simultaneous bids. Challenge 7's review answer 4 showed that `@Version` already protects the data, but the losing bidders get a 500. You chose the full version: fix the response (optimistic), then compare it with a lock (pessimistic).
+
+### What the tutor prepared
+
+| Layer | Added |
+|---|---|
+| Test | `BidConcurrencyIntegrationTest` (`RANDOM_PORT`, real HTTP through `RestClient`, 8 bidders, a `CountDownLatch` start gate). An `@Primary` test `Clock` sleeps 500 ms in `instant()`, so the race is deterministic, not luck |
+| Test (enabled) | `keepsThePriceAndTheHistoryInAgreement`: bids stored = 201 responses, the price is the highest stored bid, the leader is its bidder |
+| Tests (disabled) | Part 1: one 201, the rest 409 `CONCURRENT_UPDATE` or 422, no 5xx, one bid row. Part 2: one 201 and seven 422 `BID_TOO_LOW`, no 409s |
+| Frontend | A `CONCURRENT_UPDATE` warning in `BidPanel`; `usePlaceBid` refreshes on `onSettled`, so a rejected bid also refreshes the price |
+| Docs | Challenge 8 brief, questions and hints; rule R21; changelog |
+
+### Design decisions
+
+- **Make the race deterministic.** A race test that passes by luck proves nothing. Pausing the clock after the auction is loaded makes every request load version 0 before any commit. The same pause shows how a pessimistic lock queues requests: part 2's test takes about 8 × 0.5 s.
+- **Test through HTTP, not the service.** The optimistic failure happens at commit, outside `placeBid`, so only a full request shows what the client receives.
+- **A generic code, `CONCURRENT_UPDATE`.** The handler is global, so a draft edited in two tabs could trigger it too.
+- **Both strategies, measured by the same test.** Optimistic fails fast with 409s; pessimistic waits and gives 422s because each request sees the winner's price.
+
+### Verified
+
+- Before any solution, with all tests enabled:
+  - the invariant test passes;
+  - part 1 fails with seven `500 INTERNAL_ERROR`;
+  - part 2 fails with no 422s.
+- A temporary reference solution showed each part's test can be passed:
+  - handler only: part 1 passes, part 2 still fails;
+  - plus the lock: both pass;
+  - with the `BidServiceTest` stubs updated: 59/59.
+- The code was then restored to the Challenge 7 commit.
+
+---
+
+## Session 17 - 2026-11-12 - Challenge 8: concurrent bids completed
+
+### What you built
+
+- **Part 1:** `@ExceptionHandler(OptimisticLockingFailureException.class)` returns 409 `CONCURRENT_UPDATE` with "Someone else updated this auction at the same moment. Refresh and try again."
+- **Part 2:** `@Lock(LockModeType.PESSIMISTIC_WRITE) @Query("SELECT a FROM Auction a WHERE a.id = :id") Optional<Auction> findByIdForUpdate(Long id)`, used by `placeBid`. All five `BidServiceTest` auction stubs were moved to it.
+
+### Bugs found in review, and what each one taught
+
+| Bug | Lesson |
+|---|---|
+| `findByIdForUpdate` with no `@Query`: the app failed to start (`No property 'forUpdate' found for type 'Long'`) | Without a query, Spring Data derives one from the method name. One broken repository method stops the whole application context, so 11 unrelated tests failed |
+| An empty `@Query` | The annotation holds the JPQL text. Empty means "none given", and Spring falls back to name derivation |
+| `ex.getMessage()` in the 409 body | It leaked Hibernate's internals (entity class and id). Clients get a fixed message; details belong in the server log |
+| `BidServiceTest` still stubbed `findById` | Mocks are tied to the exact method the code calls. An unstubbed call returns an empty `Optional`, so the result is a misleading "Auction 5 was not found" |
+
+### Review answers (model answers)
+
+1. **409 vs 422:**
+   - With optimistic locking, all 8 requests read the same state (₹1,000, no leader, version 0) before anyone committed. All of them passed `acceptBid`, and the collision showed up only at commit (`WHERE version = 0` matched zero rows), which gives 409. No 422s, because nobody saw the winner's price.
+   - With the lock, request 2's `SELECT ... FOR UPDATE` waits until request 1 commits, then reads the new price and leader. `acceptBid` correctly rejects ₹1,050, which gives 422.
+   - Plain reads are not blocked; only other locking reads and writes of that row wait.
+   - *Your answer named the outcomes but not the mechanism, and said other users couldn't read.*
+2. **One generic handler:** it lives in a global `@RestControllerAdvice` and matches on the exception type. So it fires for any `@Version` entity on any endpoint: bids, two tabs editing a draft, a cancel racing the scheduler. A bid-specific name would mislead; `CONCURRENT_UPDATE` names the cause, and each screen words it for its context.
+3. **Keep `@Version`: yes.** A locked bid always reads the latest version, so its own update can't conflict. But `@Version` still protects writers that don't lock: `updateAuction`, `cancelAuction` and the future scheduler. If a cancel collides with a bid, it gets 409 instead of overwriting the new price. If the cancel commits first, the bid then reads `CANCELLED` and gets `AUCTION_NOT_ACTIVE`.
+4. **Slow work inside the lock:** it's about the transaction boundary, not the layer (`placeBid` is already in the service layer).
+   - While the transaction is open it holds the row lock and a database connection, so every other bidder on that auction waits. That's 8 × 0.5 s in the test.
+   - About 10 slow bids exhaust the Hikari pool, and the whole app stalls.
+   - Side effects belong after commit: `@TransactionalEventListener(phase = AFTER_COMMIT)`, `@Async`, or a queue. That way nobody is emailed about a bid that rolled back.
+   - *Your answer said "service layer".*
+5. **The last 10 seconds:**
+   - Pessimistic: many bidders on one row queue fairly, and each gets a definite answer in milliseconds. Optimistic would turn most of them into 409s and retries.
+   - **Server-side retry of a 409** (for example Spring Retry `@Retryable` around the whole transaction) is acceptable for bids, with a limit and backoff. The retry re-reads fresh state and re-runs every rule, so it can't save anything wrong. It's never acceptable for draft edits, where it would silently cause the lost update `@Version` exists to prevent.
+   - *Your idea of stopping bids 5 seconds early would break R4; the database needs milliseconds. The real practice behind it is anti-sniping (soft close), open question 2.*
+
+### Verified
+
+Backend: 59/59 after a clean build. The pessimistic race test took about 5.6 s, showing the bidders queued behind the lock.
+
+Challenge 8 complete. Milestone 6 still needs the winner and idempotency keys; auto-closing comes with the scheduler.
+

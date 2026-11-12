@@ -50,7 +50,7 @@ public class BidService {
      */
     @Transactional
     public BidResponse placeBid(Long auctionId, PlaceBidRequest request) {
-      Auction auction = auctionRepository.findById(auctionId).orElseThrow(() -> new ResourceNotFoundException("Auction", auctionId));
+      Auction auction = auctionRepository.findByIdForUpdate(auctionId).orElseThrow(() -> new ResourceNotFoundException("Auction", auctionId));
       User bidder = userRepository.findById(request.bidderId()).orElseThrow(() -> new ResourceNotFoundException("User", request.bidderId()));
       Instant clockNow = clock.instant();
       auction.acceptBid(bidder,request.amount(),clockNow);

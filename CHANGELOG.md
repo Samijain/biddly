@@ -6,6 +6,23 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 
 ## [Unreleased]
 
+### Added - Challenge 8: concurrent bids (2026-11-12)
+
+- `GlobalExceptionHandler` maps `OptimisticLockingFailureException` to **409 `CONCURRENT_UPDATE`** with a fixed, friendly message. Hibernate's internal text is no longer sent to the client.
+- `AuctionRepository.findByIdForUpdate`: `@Lock(PESSIMISTIC_WRITE)` with an explicit JPQL `@Query`, so Hibernate sends `SELECT ... FOR UPDATE`. `BidService.placeBid` uses it, so bids on one auction queue up instead of colliding.
+- `BidServiceTest` stubs moved to the new repository method.
+- Race tests enabled: 8 simultaneous bids give one winner, seven 422 `BID_TOO_LOW`, no 409s and no 500s (59/59 backend tests).
+- Rule R21 marked as enforced; the concurrency decision is recorded in `business-rules.md`.
+
+### Added - Challenge 8 starter: concurrent bids (2026-11-12)
+
+- `BidConcurrencyIntegrationTest`: 8 real HTTP bids released together against PostgreSQL. A test clock pauses for 500 ms so the race happens every time.
+  - Enabled: `keepsThePriceAndTheHistoryInAgreement`, proving `@Version` already keeps the data consistent.
+  - Disabled for part 1: losers get 409 `CONCURRENT_UPDATE` or 422, never 500.
+  - Disabled for part 2: with `SELECT ... FOR UPDATE`, bidders queue up and get 422, with no 409s.
+- Frontend: the bid panel shows a warning for `CONCURRENT_UPDATE` and refreshes the auction after any rejected bid, not only after a successful one.
+- Rule R21 and the Challenge 8 brief.
+
 ### Added - Challenge 7: place a bid (2026-11-12)
 
 - `Auction.acceptBid` enforces R3, R4, R5 and R19 as guard clauses in a fixed order:

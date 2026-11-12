@@ -87,7 +87,7 @@ In a task-list app, the basic actions are adding a task, editing it and marking 
 
 - **US-20 Place a bid** [M6]: As a bidder, I want to place a bid and get an immediate yes or no answer with the reason, so that I know where I stand.
   - AC: Rejection codes are `AUCTION_NOT_ACTIVE`, `AUCTION_CLOSED`, `SELF_BIDDING_NOT_ALLOWED` and `BID_TOO_LOW`.
-  - AC: When two bids race, exactly one wins and the other gets a clear `409` answer.
+  - AC: When bids race, exactly one wins and the others get a clear answer (`422` or `409`), never a `500`.
   - AC: Double-clicking "Place bid" never creates two bids (idempotency key).
 - **US-21 See live price changes** [M7]: As a bidder, I want the price to update without refreshing, so that I can react to competing bids.
 - **US-22 Outbid notification** [M7]: As a bidder, I want to be told when I've been outbid.
