@@ -643,3 +643,14 @@ Backend: 59/59 after a clean build. The pessimistic race test took about 5.6 s, 
 
 Challenge 8 complete. Milestone 6 still needs the winner and idempotency keys; auto-closing comes with the scheduler.
 
+---
+
+## Session 18 - 2026-11-12 - Rule R10: no cancelling once bids exist
+
+You spotted that R10 was still open and implemented it yourself, without a challenge brief.
+
+- **First version:** the check sat in `AuctionService.cancelAuction`. It was correct, but any other caller of `auction.cancel()` (an admin tool, the scheduler) would skip it. It also used a code outside the `AUCTION_...` naming pattern.
+- **Final version:** the check is in `Auction.cancel()`, after R17, with code `AUCTION_HAS_BIDS`. `leadingBidder != null` is a reliable "has bids" test, because only accepted bids are stored and each one sets the leader.
+- **Concurrency:** a cancel racing the first bid is already safe. Cancel loads without the lock; if a bid commits a leader first, cancel's `UPDATE ... WHERE version = ?` fails, and the seller gets 409 `CONCURRENT_UPDATE` from the Challenge 8 handler. Loading with `findByIdForUpdate` would turn that into a clearer 422; optional.
+- **Tutor added:** one entity test and one HTTP test, hiding **Cancel auction** in `AuctionActions` when there's a leader, and the docs.
+

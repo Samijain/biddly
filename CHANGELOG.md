@@ -6,6 +6,13 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 
 ## [Unreleased]
 
+### Added - Rule R10: no cancelling once bids exist (2026-11-12)
+
+- `Auction.cancel` rejects an auction that has a leading bidder with 422 `AUCTION_HAS_BIDS`, after the R17 check. The rule lives on the entity, not in `AuctionService`, so every caller of `cancel()` gets it.
+- Tests: `AuctionTest.rejectsCancellingAnAuctionThatHasBids` (gets a real leader through `acceptBid`) and `BidApiIntegrationTest.refusesToCancelAnAuctionOnceItHasABid` (bid, then cancel over HTTP; the auction stays `ACTIVE`).
+- Frontend: **Cancel auction** is hidden once an auction has a leader.
+- R10 and the US-12 criterion marked as done.
+
 ### Added - Challenge 8: concurrent bids (2026-11-12)
 
 - `GlobalExceptionHandler` maps `OptimisticLockingFailureException` to **409 `CONCURRENT_UPDATE`** with a fixed, friendly message. Hibernate's internal text is no longer sent to the client.

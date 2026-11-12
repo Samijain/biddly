@@ -86,6 +86,24 @@ class BidApiIntegrationTest {
                 .extractingPath("$.fieldErrors.amount").isNotNull();
     }
 
+    @Test
+    void refusesToCancelAnAuctionOnceItHasABid() {
+        assertThat(mvc.post().uri("/api/v1/auctions/{id}/bids", auction.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"bidderId\": %d, \"amount\": 100.00}".formatted(bidder.getId())))
+                .hasStatus(HttpStatus.CREATED);
+
+        assertThat(mvc.post().uri("/api/v1/auctions/{id}/cancel", auction.getId()))
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+                .bodyJson()
+                .extractingPath("$.code").isEqualTo("AUCTION_HAS_BIDS");
+
+        assertThat(mvc.get().uri("/api/v1/auctions/{id}", auction.getId()))
+                .hasStatusOk()
+                .bodyJson()
+                .extractingPath("$.status").isEqualTo("ACTIVE");
+    }
+
     /** Proves the bid and the new price reach the database, not just the in-memory entity. */
     @Test
     void storesAnAcceptedBidAndTheNewPrice() {

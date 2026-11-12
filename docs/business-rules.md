@@ -29,7 +29,7 @@ stateDiagram-v2
 | R7 | A completed auction has at most one winning bid | Service + partial unique index (M6) | ⏳ |
 | R8 | An auction with no bids closes without a winner | Scheduler (M7) | ⏳ |
 | R9 | All timestamps are stored in UTC | `TIMESTAMPTZ`, `Instant`, `hibernate.jdbc.time_zone=UTC` | ✅ |
-| R10 | Cancellation is not allowed once valid bids exist | Service | ⏳ |
+| R10 | Cancellation is not allowed once valid bids exist | `Auction.cancel` (`AUCTION_HAS_BIDS`); a race with a first bid is caught by `@Version` (409) | ✅ |
 | R11 | Money is exact decimal (`NUMERIC(12,2)`), never floating point | Schema + `BigDecimal` | ✅ |
 | R12 | Prices and increments are positive; `end > start`; `current ≥ starting` | DB `CHECK` constraints | ✅ |
 | R13 | A new auction starts in `DRAFT` with `currentPrice = startingPrice` | `Auction` constructor | ✅ |

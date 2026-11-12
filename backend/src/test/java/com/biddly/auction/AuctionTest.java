@@ -86,6 +86,19 @@ class AuctionTest {
         assertThat(auction.getStatus()).isEqualTo(status);
     }
 
+    @Test
+    void rejectsCancellingAnAuctionThatHasBids() {
+        var auction = new Auction(user(1L, "Asha Seller"), null, "Vintage clock", "Brass, 1920s", null,
+                new BigDecimal("1000.00"), new BigDecimal("50.00"), NOW.minus(1, ChronoUnit.HOURS), NOW.plus(1, ChronoUnit.HOURS));
+        withStatus(auction, AuctionStatus.ACTIVE);
+        auction.acceptBid(user(2L, "Rohan Bidder"), new BigDecimal("1000.00"), NOW);
+
+        assertThatThrownBy(auction::cancel)
+                .isInstanceOf(BusinessRuleException.class)
+                .extracting("code").isEqualTo("AUCTION_HAS_BIDS");
+        assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ACTIVE);
+    }
+
     @Nested
     class UpdateDetails {
 

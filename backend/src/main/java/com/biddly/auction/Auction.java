@@ -123,14 +123,16 @@ public class Auction {
 
     /**
      * Cancels an auction that has not finished.
-     *   1. status is COMPLETED or CANCELLED -> BusinessRuleException("AUCTION_NOT_CANCELLABLE", ...)
-     *   2. otherwise                        -> status becomes CANCELLED
-     * Rule R10 (no cancelling once valid bids exist) is added in Milestone 6, when bids exist.
+     *   1. status is COMPLETED or CANCELLED -> BusinessRuleException("AUCTION_NOT_CANCELLABLE", ...)  (R17)
+     *   2. it already has a bid             -> BusinessRuleException("AUCTION_HAS_BIDS", ...)         (R10)
+     *   3. otherwise                        -> status becomes CANCELLED
      */
     public void cancel() {
        if(status.equals(AuctionStatus.CANCELLED)||status.equals(AuctionStatus.COMPLETED)){
            throw new BusinessRuleException("AUCTION_NOT_CANCELLABLE","Auction is already cancelled or completed");
        }
+       if(leadingBidder!=null)
+           throw new BusinessRuleException("AUCTION_HAS_BIDS","Bidding is already started cannot cancel the Auction");
        status=AuctionStatus.CANCELLED;
     }
 

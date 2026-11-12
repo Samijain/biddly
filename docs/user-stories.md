@@ -31,7 +31,7 @@ As a seller, I want to publish my draft so that bidders can see it.
 
 **US-12 Cancel an auction** (M4 ✅, Challenge 5)
 As a seller, I want to cancel my auction before anyone has bid.
-- AC: Blocked once a valid bid exists (R10, added in M6 when bids exist).
+- AC ✅: Blocked once a valid bid exists (R10, `AUCTION_HAS_BIDS`); the **Cancel auction** button is hidden then.
 
 **US-13 Edit a draft auction** (M4 ✅, Challenge 6)
 As a seller, I want to change my draft before publishing so that I can fix mistakes.

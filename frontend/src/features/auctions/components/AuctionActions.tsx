@@ -32,7 +32,7 @@ export function AuctionActions({ auction }: { auction: Auction }) {
 
   const canPublish = auction.status === 'DRAFT'
   const canEdit = auction.status === 'DRAFT'
-  const canCancel = cancellable.includes(auction.status)
+  const canCancel = cancellable.includes(auction.status) && auction.leadingBidder === null
   if (!canPublish && !canCancel) return null
 
   const error = publish.error ?? cancel.error
