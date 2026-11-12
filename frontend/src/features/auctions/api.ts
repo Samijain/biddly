@@ -1,8 +1,11 @@
 import { http } from '../../lib/http'
 import { mockAuctions, mockCategories } from './mockAuctions'
-import type { Auction, AuctionStatus, CategorySummary, PageResponse } from './types'
+import type { Auction, AuctionInput, AuctionStatus, CategorySummary, PageResponse } from './types'
 
 const useMocks = import.meta.env.VITE_USE_MOCKS === 'true'
+
+/** Until sign-in exists (Milestone 5) every auction is created by the seeded seller "Asha". */
+const DEMO_SELLER_ID = 1
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export async function fetchAuctions(status: AuctionStatus = 'ACTIVE'): Promise<PageResponse<Auction>> {
@@ -22,6 +25,16 @@ export async function fetchAuction(id: number): Promise<Auction> {
     return found
   }
   return http<Auction>(`/api/v1/auctions/${id}`)
+}
+
+export async function createAuction(input: AuctionInput): Promise<Auction> {
+  if (useMocks) throw new Error('Creating auctions needs the real backend. Run `npm run dev` instead of `npm run dev:mock`.')
+  return http<Auction>('/api/v1/auctions', { method: 'POST', body: JSON.stringify({ sellerId: DEMO_SELLER_ID, ...input }) })
+}
+
+export async function updateAuction(id: number, input: AuctionInput): Promise<Auction> {
+  if (useMocks) throw new Error('Editing auctions needs the real backend. Run `npm run dev` instead of `npm run dev:mock`.')
+  return http<Auction>(`/api/v1/auctions/${id}`, { method: 'PUT', body: JSON.stringify(input) })
 }
 
 export async function publishAuction(id: number): Promise<Auction> {

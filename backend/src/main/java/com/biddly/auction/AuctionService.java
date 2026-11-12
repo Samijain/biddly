@@ -4,12 +4,14 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 
+import com.biddly.category.Category;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.biddly.auction.dto.AuctionResponse;
 import com.biddly.auction.dto.CreateAuctionRequest;
+import com.biddly.auction.dto.UpdateAuctionRequest;
 import com.biddly.category.CategoryRepository;
 import com.biddly.common.PageResponse;
 import com.biddly.common.ResourceNotFoundException;
@@ -49,35 +51,23 @@ public class AuctionService {
     }
 
     /**
-     * CHALLENGE 2 - see docs/CHALLENGES.md for the full brief and hints.
-     *
-     * Acceptance criteria (the tests in AuctionServiceTest describe them exactly):
+     * Creates a draft auction (rules R13, R14):
      *   1. startTime must not be in the past              -> BusinessRuleException("START_TIME_IN_PAST", ...)
      *   2. endTime must be after startTime                -> BusinessRuleException("INVALID_TIME_WINDOW", ...)
      *   3. the seller must exist                          -> ResourceNotFoundException("User", sellerId)
      *   4. if categoryId is given, the category must exist -> ResourceNotFoundException("Category", categoryId)
      *   5. save a new DRAFT auction and return it as an AuctionResponse
-     *
-     * Remove the throw below, then remove @Disabled from AuctionServiceTest and make it pass.
      */
     @Transactional
     public AuctionResponse createAuction(CreateAuctionRequest request) {
-        var startTime = request.startTime();
-        var endTime = request.endTime();
-        if (startTime.isBefore(clock.instant())) {
-            throw new BusinessRuleException("START_TIME_IN_PAST","The auction can't start in the past.");
-        }
-        if (!endTime.isAfter(startTime)) {
-            throw new BusinessRuleException("INVALID_TIME_WINDOW","endTime must be after startTime");
-        }
+        var now = clock.instant();
+        validateTimeWindow(request.startTime(), request.endTime(), now);
+        var category = findCategory(request.categoryId());
         var seller = userRepository.findById(request.sellerId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", request.sellerId()));
-        var category = request.categoryId() != null ? categoryRepository.findById(request.categoryId())
-                .orElseThrow(() -> new ResourceNotFoundException("Category", request.categoryId()))
-                : null;
         var auction = auctionRepository.save(
-            new Auction(seller, category, request.title(), request.description(), request.coverImageUrl(), request.startingPrice(), request.minimumIncrement(), startTime, endTime));
-        return auctionMapper.toResponse(auction, clock.instant());
+            new Auction(seller, category, request.title(), request.description(), request.coverImageUrl(), request.startingPrice(), request.minimumIncrement(), request.startTime(), request.endTime()));
+        return auctionMapper.toResponse(auction, now);
     }
 
     /**
@@ -105,5 +95,42 @@ public class AuctionService {
         Auction auction= auctionRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Auction", id));
         auction.cancel();
         return auctionMapper.toResponse(auction, clock.instant());
+    }
+
+    /**
+     * Replaces the details of a draft (rules R14, R18; the status rule lives on {@link Auction#updateDetails}).
+     *   1. load it with auctionRepository.findById(id); unknown id -> ResourceNotFoundException("Auction", id)
+     *   2. the same time-window rules as createAuction (R14): START_TIME_IN_PAST, INVALID_TIME_WINDOW
+     *   3. if categoryId is given, the category must exist -> ResourceNotFoundException("Category", categoryId)
+     *   4. let the entity apply its rules: auction.updateDetails(...)
+     *   5. return the auction as an AuctionResponse
+     */
+    @Transactional
+    public AuctionResponse updateAuction(Long id, UpdateAuctionRequest request) {
+        Auction auction = auctionRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Auction", id));
+
+        var now = clock.instant();
+        validateTimeWindow(request.startTime(), request.endTime(), now);
+        var category = findCategory(request.categoryId());
+
+        auction.updateDetails(category,request.title(),request.description(),request.coverImageUrl(),
+                request.startingPrice(),request.minimumIncrement(),request.startTime(),request.endTime());
+
+        return auctionMapper.toResponse(auction,now);
+    }
+
+    private Category findCategory(Long categoryId) {
+        return  categoryId != null ? categoryRepository.findById(categoryId)
+                                                      .orElseThrow(() -> new ResourceNotFoundException("Category", categoryId))
+                : null;
+    }
+
+    private void validateTimeWindow(Instant startTime, Instant endTime, Instant now){
+        if (startTime.isBefore(now)) {
+            throw new BusinessRuleException("START_TIME_IN_PAST","The auction can't start in the past.");
+        }
+        if (!endTime.isAfter(startTime)) {
+            throw new BusinessRuleException("INVALID_TIME_WINDOW","endTime must be after startTime");
+        }
     }
 }

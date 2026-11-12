@@ -18,8 +18,11 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.biddly.auction.dto.CreateAuctionRequest;
+import com.biddly.auction.dto.UpdateAuctionRequest;
+import com.biddly.category.Category;
 import com.biddly.category.CategoryRepository;
 import com.biddly.common.BusinessRuleException;
 import com.biddly.common.ResourceNotFoundException;
@@ -135,11 +138,88 @@ class AuctionServiceTest {
                     .isInstanceOf(ResourceNotFoundException.class)
                     .hasMessageContaining("Auction 5");
         }
+    }
 
-        private static Auction draft(Instant start) {
-            return new Auction(new User("Asha", "asha@test.dev"), null, "Vintage clock", "Brass, 1920s", null,
-                    new BigDecimal("1000.00"), new BigDecimal("50.00"), start, start.plus(1, ChronoUnit.DAYS));
+    @Nested
+    class UpdateAuction {
+
+        @Test
+        void updatesADraftWithoutCallingSave() {
+            when(auctionRepository.findById(5L)).thenReturn(Optional.of(draft(NOW.plus(1, ChronoUnit.HOURS))));
+            when(categoryRepository.findById(3L)).thenReturn(Optional.of(new Category("Watches", "watches")));
+
+            var response = service.updateAuction(5L, update(NOW.plus(2, ChronoUnit.HOURS), NOW.plus(3, ChronoUnit.DAYS), 3L));
+
+            assertThat(response.title()).isEqualTo("Pocket watch");
+            assertThat(response.category().name()).isEqualTo("Watches");
+            assertThat(response.startingPrice()).isEqualByComparingTo("2500.00");
+            assertThat(response.currentPrice()).isEqualByComparingTo("2500.00");
+            assertThat(response.status()).isEqualTo(AuctionStatus.DRAFT);
+            verify(auctionRepository, never()).save(any());
         }
+
+        @Test
+        void rejectsAnUnknownAuction() {
+            when(auctionRepository.findById(5L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.updateAuction(5L, update(NOW.plus(1, ChronoUnit.HOURS), NOW.plus(1, ChronoUnit.DAYS), null)))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining("Auction 5");
+        }
+
+        @Test
+        void rejectsStartTimeInThePast() {
+            var auction = draft(NOW.plus(1, ChronoUnit.HOURS));
+            when(auctionRepository.findById(5L)).thenReturn(Optional.of(auction));
+
+            assertThatThrownBy(() -> service.updateAuction(5L, update(NOW.minus(1, ChronoUnit.MINUTES), NOW.plus(1, ChronoUnit.DAYS), null)))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("START_TIME_IN_PAST");
+            assertThat(auction.getTitle()).isEqualTo("Vintage clock");
+        }
+
+        @Test
+        void rejectsEndTimeThatIsNotAfterStartTime() {
+            var auction = draft(NOW.plus(1, ChronoUnit.HOURS));
+            when(auctionRepository.findById(5L)).thenReturn(Optional.of(auction));
+            var start = NOW.plus(2, ChronoUnit.HOURS);
+
+            assertThatThrownBy(() -> service.updateAuction(5L, update(start, start, null)))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("INVALID_TIME_WINDOW");
+            assertThat(auction.getTitle()).isEqualTo("Vintage clock");
+        }
+
+        @Test
+        void rejectsAnUnknownCategory() {
+            when(auctionRepository.findById(5L)).thenReturn(Optional.of(draft(NOW.plus(1, ChronoUnit.HOURS))));
+            when(categoryRepository.findById(99L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.updateAuction(5L, update(NOW.plus(1, ChronoUnit.HOURS), NOW.plus(1, ChronoUnit.DAYS), 99L)))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining("Category 99");
+        }
+
+        @Test
+        void rejectsEditingAPublishedAuction() {
+            var auction = draft(NOW.plus(1, ChronoUnit.HOURS));
+            ReflectionTestUtils.setField(auction, "status", AuctionStatus.SCHEDULED);
+            when(auctionRepository.findById(5L)).thenReturn(Optional.of(auction));
+
+            assertThatThrownBy(() -> service.updateAuction(5L, update(NOW.plus(2, ChronoUnit.HOURS), NOW.plus(1, ChronoUnit.DAYS), null)))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("AUCTION_NOT_EDITABLE");
+        }
+
+        private static UpdateAuctionRequest update(Instant start, Instant end, Long categoryId) {
+            return new UpdateAuctionRequest(categoryId, "Pocket watch", "Silver, 1890s", null,
+                    new BigDecimal("2500.00"), new BigDecimal("100.00"), start, end);
+        }
+    }
+
+    private static Auction draft(Instant start) {
+        return new Auction(new User("Asha", "asha@test.dev"), null, "Vintage clock", "Brass, 1920s", null,
+                new BigDecimal("1000.00"), new BigDecimal("50.00"), start, start.plus(1, ChronoUnit.DAYS));
     }
 
     private static CreateAuctionRequest request(Instant start, Instant end) {

@@ -1,4 +1,5 @@
 import CancelRounded from '@mui/icons-material/CancelRounded'
+import EditRounded from '@mui/icons-material/EditRounded'
 import RocketLaunchRounded from '@mui/icons-material/RocketLaunchRounded'
 import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
@@ -12,6 +13,7 @@ import DialogTitle from '@mui/material/DialogTitle'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { useState } from 'react'
+import { Link as RouterLink } from 'react-router'
 
 import { ApiError } from '../../../lib/http'
 import { useCancelAuction, usePublishAuction } from '../hooks'
@@ -21,7 +23,7 @@ const cancellable: readonly AuctionStatus[] = ['DRAFT', 'SCHEDULED', 'ACTIVE']
 
 /**
  * Seller controls on the details page. The buttons only mirror the rules for a nicer UI;
- * the server enforces them (Challenge 5). Until sign-in exists (Milestone 5) everyone sees them.
+ * the server enforces them. Until sign-in exists (Milestone 5) everyone sees them.
  */
 export function AuctionActions({ auction }: { auction: Auction }) {
   const publish = usePublishAuction()
@@ -29,6 +31,7 @@ export function AuctionActions({ auction }: { auction: Auction }) {
   const [confirmingCancel, setConfirmingCancel] = useState(false)
 
   const canPublish = auction.status === 'DRAFT'
+  const canEdit = auction.status === 'DRAFT'
   const canCancel = cancellable.includes(auction.status)
   if (!canPublish && !canCancel) return null
 
@@ -58,6 +61,17 @@ export function AuctionActions({ auction }: { auction: Auction }) {
                 }}
               >
                 Publish
+              </Button>
+            )}
+            {canEdit && (
+              <Button
+                variant="outlined"
+                startIcon={<EditRounded />}
+                disabled={busy}
+                component={RouterLink}
+                to={`/auctions/${auction.id}/edit`}
+              >
+                Edit
               </Button>
             )}
             {canCancel && (
@@ -103,7 +117,7 @@ export function AuctionActions({ auction }: { auction: Auction }) {
 
 function ActionError({ error }: { error: Error }) {
   if (error instanceof ApiError && error.code === 'NOT_IMPLEMENTED') {
-    return <Alert severity="info">The server can't publish or cancel auctions yet. This is your backend Challenge 5!</Alert>
+    return <Alert severity="info">The server can't do this yet. It's one of your backend challenges!</Alert>
   }
   return <Alert severity="error">{error.message}</Alert>
 }

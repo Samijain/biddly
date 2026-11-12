@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { cancelAuction, fetchAuction, fetchAuctions, fetchCategories, publishAuction } from './api'
-import type { Auction, AuctionStatus } from './types'
+import { cancelAuction, createAuction, fetchAuction, fetchAuctions, fetchCategories, publishAuction, updateAuction } from './api'
+import type { Auction, AuctionInput, AuctionStatus } from './types'
 
 /**
  * Query keys identify cached server data. Anything the request depends on (status, id)
@@ -31,13 +31,13 @@ export function useAuction(id: number) {
 }
 
 /**
- * Changing an auction's status moves it between lists (DRAFT -> ACTIVE), so every auction query is
- * invalidated. The detail entry is updated straight away from the response, so the page doesn't flicker.
+ * Any change to an auction can move it between lists (DRAFT -> ACTIVE) or change what a list shows, so every
+ * auction query is invalidated. The detail entry is updated straight away from the response, so the page doesn't flicker.
  */
-function useAuctionAction(action: (id: number) => Promise<Auction>) {
+function useAuctionMutation<TVariables>(mutationFn: (variables: TVariables) => Promise<Auction>) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: action,
+    mutationFn,
     onSuccess: async (auction) => {
       queryClient.setQueryData(auctionKeys.detail(auction.id), auction)
       await queryClient.invalidateQueries({ queryKey: auctionKeys.all })
@@ -45,12 +45,20 @@ function useAuctionAction(action: (id: number) => Promise<Auction>) {
   })
 }
 
+export function useCreateAuction() {
+  return useAuctionMutation(createAuction)
+}
+
+export function useUpdateAuction() {
+  return useAuctionMutation(({ id, input }: { id: number; input: AuctionInput }) => updateAuction(id, input))
+}
+
 export function usePublishAuction() {
-  return useAuctionAction(publishAuction)
+  return useAuctionMutation(publishAuction)
 }
 
 export function useCancelAuction() {
-  return useAuctionAction(cancelAuction)
+  return useAuctionMutation(cancelAuction)
 }
 
 export function useCategories() {

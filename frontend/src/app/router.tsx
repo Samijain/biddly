@@ -4,6 +4,7 @@ import { AppLayout } from '../components/layout/AppLayout'
 import { AuctionDetailsPage } from '../pages/AuctionDetailsPage'
 import { AuctionsPage } from '../pages/AuctionsPage'
 import { CreateAuctionPage } from '../pages/CreateAuctionPage'
+import { EditAuctionPage } from '../pages/EditAuctionPage'
 import { HomePage } from '../pages/HomePage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 
@@ -15,6 +16,7 @@ export const router = createBrowserRouter([
       { path: 'auctions', element: <AuctionsPage /> },
       { path: 'auctions/new', element: <CreateAuctionPage /> },
       { path: 'auctions/:auctionId', element: <AuctionDetailsPage /> },
+      { path: 'auctions/:auctionId/edit', element: <EditAuctionPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

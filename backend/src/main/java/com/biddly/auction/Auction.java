@@ -129,6 +129,30 @@ public class Auction {
        status=AuctionStatus.CANCELLED;
     }
 
+    /**
+     * Replaces the editable details of a draft (rules R2, R18). The service has already checked the time
+     * window and looked up the category.
+     *   1. status is not DRAFT  -> BusinessRuleException("AUCTION_NOT_EDITABLE", ...), nothing changes
+     *   2. otherwise            -> copy every argument into its field, and set currentPrice to the new
+     *                              startingPrice (a draft has no bids yet)
+     */
+    public void updateDetails(Category category, String title, String description, String coverImageUrl,
+            BigDecimal startingPrice, BigDecimal minimumIncrement, Instant startTime, Instant endTime) {
+        if(!status.equals(AuctionStatus.DRAFT))
+            throw new BusinessRuleException("AUCTION_NOT_EDITABLE","Auction is not editable");
+
+        this.category = category;
+        this.title = title;
+        this.description = description;
+        this.coverImageUrl = coverImageUrl;
+        this.startingPrice = startingPrice;
+        this.minimumIncrement = minimumIncrement;
+        this.currentPrice = startingPrice;
+        this.startTime = startTime;
+        this.endTime = endTime;
+
+    }
+
     public Long getId() {
         return id;
     }

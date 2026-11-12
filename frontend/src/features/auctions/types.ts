@@ -29,6 +29,18 @@ export interface Auction {
   serverTime: string
 }
 
+/** The editable fields of an auction, as sent to POST (create) and PUT (update). Times are ISO-8601 UTC. */
+export interface AuctionInput {
+  categoryId: number | null
+  title: string
+  description: string | null
+  coverImageUrl: string | null
+  startingPrice: number
+  minimumIncrement: number
+  startTime: string
+  endTime: string
+}
+
 export interface PageResponse<T> {
   content: T[]
   page: number
