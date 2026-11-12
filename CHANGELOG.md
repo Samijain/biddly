@@ -46,6 +46,22 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 
 - `AGENTS.md` at the repository root: guidance for AI coding agents (tutor mode, layout, commands, backend and frontend conventions, business rules, documentation rules).
 
+### Added - Challenge 6: edit a draft auction (2026-11-12)
+
+- `Auction.updateDetails(...)`: rejects anything but a `DRAFT` (`AUCTION_NOT_EDITABLE`), replaces every editable field (a `null` clears an optional field) and resets `currentPrice` to the new `startingPrice`.
+- `AuctionService.updateAuction`: load or 404, the same time-window and category checks as create, then delegate to the entity. Saved by dirty checking, without `save`. `PUT /api/v1/auctions/{id}` now works instead of returning 501.
+- Refactor: `createAuction` and `updateAuction` share `validateTimeWindow(start, end, now)` and `findCategory(id)`, and each reads the clock once.
+- `AuctionTest.UpdateDetails` and `AuctionServiceTest.UpdateAuction` enabled (35/35 backend tests).
+- Rules R2 and R18 marked as enforced; US-13 done.
+
+### Added - Challenge 6 starter: edit a draft auction (2026-11-11)
+
+- Endpoint `PUT /api/v1/auctions/{id}` with an `UpdateAuctionRequest` body (returns 501 until Challenge 6 is solved).
+- Stubs: `Auction.updateDetails(...)` and `AuctionService.updateAuction(...)`.
+- Disabled tests: `AuctionTest.UpdateDetails` (4 methods, 7 cases) and `AuctionServiceTest.UpdateAuction` (6).
+- Frontend: **Edit draft** page (`/auctions/:id/edit`) and an **Edit** button for drafts. The "Sell an item" form moved into a shared `AuctionForm` component (same look), with its schema and conversions in `auctionForm.ts`. Create and update calls moved into `api.ts` and the `useCreateAuction` / `useUpdateAuction` hooks, built on one generic `useAuctionMutation`.
+- Business rule R18 and the Challenge 6 brief in `docs/CHALLENGES.md`.
+
 ### Added - Challenge 5: publish and cancel (2026-11-10)
 
 - `Auction.publish(now)`: only a `DRAFT` whose `endTime` is still in the future can be published (`AUCTION_NOT_DRAFT`, `AUCTION_ALREADY_ENDED`); it becomes `ACTIVE` if `startTime` has arrived, otherwise `SCHEDULED`.

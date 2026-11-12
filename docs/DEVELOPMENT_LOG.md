@@ -409,3 +409,70 @@ Auctions published before their start time stay `SCHEDULED` even after it passes
 Backend: 22/22 tests. Frontend: 10/10 tests, `typecheck` and `lint` clean. Manual checks: publishing an ended draft returns 422 `AUCTION_ALREADY_ENDED`; an unknown ID returns 404; publishing and cancelling from the details page work.
 
 Challenge 5 complete.
+
+---
+
+## Session 12 - 2026-11-11 - Challenge 6 starter: edit a draft auction
+
+### Why this challenge
+
+A seller could create a draft but not fix it. Your auction 8 ended on 2 November while still a draft, so it can never be published, and there was no way to correct it. Editing drafts (US-13) is the last business logic in Milestone 4.
+
+### What the tutor prepared
+
+| Layer | Added |
+|---|---|
+| DTO | `UpdateAuctionRequest`: the create fields without `sellerId` (ownership never changes) and without `status` (only publish and cancel change it) |
+| Controller | `PUT /api/v1/auctions/{id}` returning the updated `AuctionResponse` |
+| Service (stub) | `updateAuction(id, request)`, `@Transactional`, throwing `UnsupportedOperationException` (HTTP 501) |
+| Entity (stub) | `Auction.updateDetails(...)` with the rules in Javadoc |
+| Tests (disabled) | `AuctionTest.UpdateDetails` (4 methods, 7 cases, including a parameterized "not a draft" test) and `AuctionServiceTest.UpdateAuction` (6, including one that checks `save` is never called). The shared `draft(...)` helper moved to the outer test class. |
+| Frontend | `AuctionForm` extracted from `CreateAuctionPage` without changing its look; `auctionForm.ts` holds the Zod schema and the form-to-request conversions; new `EditAuctionPage` (non-drafts show a "details are locked" message); **Edit** button in `AuctionActions`; `createAuction` / `updateAuction` in `api.ts`; `useAuctionAction` generalized to `useAuctionMutation<TVariables>`, which also backs `useCreateAuction` and `useUpdateAuction` |
+| Docs | Rule R18, Challenge 6 brief and hints, README API table, roadmap, user stories |
+
+### Design decisions
+
+- **PUT, not PATCH:** the form always has every field, so the client sends the whole draft. A `null` optional field means "clear it"; a test checks this.
+- **Time and category checks stay in the service** (they need the clock and the database). The status check lives on the entity, like `publish`. The brief asks you to share the create checks through private methods, not copies.
+- **No optimistic-locking check yet:** the request has no `version`, so two simultaneous edits overwrite each other. This is review question 3, and the same idea comes back for bids in Milestone 6.
+- **The Edit page's category select gets its starting value directly,** because MUI's select keeps its own state and React Hook Form can't set it through `register`.
+
+### Verified
+
+- A reference solution was written temporarily, and all 35 backend test cases passed (13 Challenge 6 cases). The stubs were restored and `mvnw clean` was run.
+- With the stubs: 32 backend cases, 22 pass and 10 are skipped. `PUT /api/v1/auctions/9` returns 501. Frontend: 10/10 tests, `typecheck` and `lint` clean.
+- Gotcha: `mvnw clean` or `test` while the app runs from IntelliJ or `spring-boot:run` can delete classes under the running app or the test run (`NoClassDefFoundError`). Rerunning fixed it; stopping the app first avoids it.
+
+---
+
+## Session 13 - 2026-11-11 to 2026-11-12 - Challenge 6: edit a draft auction completed
+
+### What you built
+
+- `Auction.updateDetails(...)` throws `AUCTION_NOT_EDITABLE` unless the auction is a `DRAFT`, then copies every argument (including `null`s) and resets `currentPrice` to the new `startingPrice`.
+- `AuctionService.updateAuction` loads the auction or returns 404, reads the clock once, calls `validateTimeWindow(start, end, now)` and `findCategory(categoryId)`, delegates to the entity and maps the result.
+- `createAuction` now uses the same two private methods, so R14 and the category lookup each live in one place.
+
+### Mistakes found in review, and what they taught
+
+| Mistake | Lesson |
+|---|---|
+| `AUCTION_NOT_EIDTABLE` | Error codes are part of the API contract; clients and tests compare them exactly. |
+| `currentPrice` not reset | A field derived from another (`currentPrice` from `startingPrice`) must be updated with it. |
+| Status check moved from the entity to the service | A rule in the service protects one call path; on the entity it protects every caller of a `public` method. |
+| First helper took a `CreateAuctionRequest` and looked up seller and category, discarding them | Update couldn't reuse it, and create ran two extra queries. Helpers should take only the values they need and return what they find. |
+| `request.categoryId()` inside the extracted helper | After an Extract Method, every variable must come from the new method's parameters. |
+
+### Review questions: key points
+
+1. The status check lives on the entity, so no caller can edit a live auction. The time and category checks stay in the service, because they need the `Clock` and the `CategoryRepository`.
+2. With PUT the body is the whole new state, so `null` means "clear it"; a null-guard would make optional fields impossible to clear. The guard is right for PATCH, where a missing field means "leave it alone".
+3. Today two tabs saving the same draft is "last write wins": the second silently overwrites the first (a lost update). `@Version` adds `AND version = ?` to the `UPDATE`, but it only catches this if the client sends back the version it loaded (in `AuctionResponse` and `UpdateAuctionRequest`), and a mismatch returns 409 Conflict. HTTP's equivalent is `ETag` / `If-Match`.
+4. No `sellerId`: ownership never changes, and from Milestone 5 the seller comes from sign-in, not the client. No `status`: status changes only through publish and cancel.
+5. On a live auction `currentPrice` is the highest accepted bid; resetting it would allow bids below an accepted one. R2 locks price rules after publishing.
+
+### Verified
+
+Backend: 35/35 tests (13 for Challenge 6, plus the Challenge 2 tests guarding the refactor). Manual checks against the running app: PUT to an unknown ID returns 404; a past start time returns 422; editing an `ACTIVE` auction returns 422.
+
+Challenge 6 complete. All of Milestone 4's business logic is done; only the OpenAPI docs remain.

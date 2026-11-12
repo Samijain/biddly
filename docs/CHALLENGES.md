@@ -10,6 +10,7 @@ Ask for a hint whenever you are stuck, and ask for a code review when you are fi
 | 3 | Search, filter and sort auctions (`filterAuctions`) | TypeScript / React | ✅ Done (2026-11-04): 7/7 tests, exhaustive `never` check |
 | 4 | TypeScript domain model (Milestone 2) | TypeScript | Done (2026-10-27) |
 | 5 | Publish and cancel an auction (`Auction.publish`, `Auction.cancel`) | Spring Boot / JPA | ✅ Done (2026-11-10): 22/22 backend tests, verified end to end |
+| 6 | Edit a draft auction (`AuctionService.updateAuction`, `Auction.updateDetails`) | Spring Boot / JPA | ✅ Done (2026-11-12): 35/35 backend tests, shared validation refactor |
 
 ---
 
@@ -200,3 +201,65 @@ Check the rules in the order listed. Each test checks that the status is **uncha
 Hint 3
 
 `AuctionService.getById` already shows the "load or 404" pattern with `orElseThrow`. Read "now" once from the `clock` and use the same value for `publish(now)` and `toResponse(auction, now)`.
+
+---
+
+## Challenge 6 - Edit a draft auction (Spring Boot / JPA)
+
+**Files:**
+
+- `backend/src/main/java/com/biddly/auction/Auction.java`: `updateDetails(...)`
+- `backend/src/main/java/com/biddly/auction/AuctionService.java`: `updateAuction(id, request)`, plus a small refactor of `createAuction`
+
+**Tests:** remove `@Disabled` from the nested `UpdateDetails` class in `AuctionTest` and the nested `UpdateAuction` class in `AuctionServiceTest`.
+**Run:** `cd backend; .\mvnw.cmd test -Dtest="AuctionTest,AuctionServiceTest*"` (stop the running backend first, or restart it afterwards).
+
+Ready for you: `PUT /api/v1/auctions/{id}` with an `UpdateAuctionRequest` body, an **Edit** button on a draft's details page, and an **Edit draft** page that reuses the "Sell an item" form. Until you finish, saving shows "The server can't do this yet".
+
+Sellers make typos. While an auction is a `DRAFT`, nobody can see it or bid on it, so every detail may change. Once it's published, bidders rely on the price rules (R2), so the details lock.
+
+### Acceptance criteria
+
+`Auction.updateDetails(category, title, description, coverImageUrl, startingPrice, minimumIncrement, startTime, endTime)` (rules R2, R18):
+
+1. Not a `DRAFT` -> `BusinessRuleException("AUCTION_NOT_EDITABLE", ...)`, and nothing changes
+2. Otherwise copy **every** argument into its field, including `null`s, and set `currentPrice` to the new `startingPrice`
+
+`AuctionService.updateAuction(id, request)`:
+
+1. Load with `auctionRepository.findById(id)`; unknown id -> `ResourceNotFoundException("Auction", id)`
+2. The same time rules as create (R14): `START_TIME_IN_PAST`, `INVALID_TIME_WINDOW`
+3. If `categoryId` is given, the category must exist -> `ResourceNotFoundException("Category", categoryId)`
+4. Call `auction.updateDetails(...)` and return `auctionMapper.toResponse(...)`. No `save`: a test checks that.
+
+**Don't copy steps 2 and 3 from `createAuction`.** Move them into private methods, and make both `createAuction` and `updateAuction` call them. The Challenge 2 tests keep passing if the refactor is right.
+
+When it works, open your draft auction 8 ("Shanti Dhara Chandrapbhu Bhagwan"). Its end time passed on 2 November, so publishing it fails with `AUCTION_ALREADY_ENDED`. Click **Edit**, give it new start and end times, save, then publish it. It finally reaches **Live auctions**.
+
+### Learn first
+
+- **PUT vs PATCH:** PUT replaces the whole resource, so a missing optional field means "clear it". PATCH changes only the fields that are sent. Which one does `clearsOptionalFieldsThatAreSentAsNull` test?
+- **Extract Method refactoring and DRY:** one rule, one place. What happens later if the time rule changes and it lives in two places?
+- **Where each check belongs:** Bean Validation on the request record (shape of one field), the service (needs the clock or the database), the entity (its own state). Sort this challenge's rules into those three.
+- **Lost updates and `@Version`:** two tabs open the same draft and both save. The second silently overwrites the first. Read how optimistic locking would turn that into an error.
+- **Order of checks:** which error is most useful to the user when a request breaks two rules at once?
+
+### Questions to answer in your PR description
+
+1. Which checks did you put in the service and which in the entity, and why?
+2. Why would `if (description != null) this.description = description;` be wrong here? For which HTTP method would it be right?
+3. Two tabs edit the same draft and both click **Save**. What happens today? What would the client need to send for `@Version` to catch it?
+4. Why does `UpdateAuctionRequest` have no `sellerId` and no `status`?
+5. Editing resets `currentPrice` to the new `startingPrice`. Why is that safe for a draft but dangerous for an active auction?
+
+Hint 1
+
+Two private methods are enough, for example `validateTimeWindow(Instant start, Instant end, Instant now)` and `findCategory(Long categoryId)`, which returns `null` when the id is `null`. Refactor `createAuction` first and run the Challenge 2 tests before you write `updateAuction`.
+
+Hint 2
+
+The entity check works like `publish`: throw before assigning anything. Inside the class you can assign fields directly (`this.title = title;`).
+
+Hint 3
+
+The service tests freeze time at `NOW`. Read the clock once in `updateAuction` and pass that same instant to the time check and to `toResponse`.

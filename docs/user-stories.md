@@ -33,9 +33,9 @@ As a seller, I want to publish my draft so that bidders can see it.
 As a seller, I want to cancel my auction before anyone has bid.
 - AC: Blocked once a valid bid exists (R10, added in M6 when bids exist).
 
-**US-13 Edit a draft auction** (M4)
+**US-13 Edit a draft auction** (M4 ✅, Challenge 6)
 As a seller, I want to change my draft before publishing so that I can fix mistakes.
-- AC: Only the owner can edit, and only while the auction is `DRAFT` (R1). Price rules are locked after publishing (R2).
+- AC: Only the owner can edit (R1, added in M5), and only while the auction is `DRAFT` (R18). Price rules are locked after publishing (R2).
 
 **US-14 See the result** (M7)
 As a seller, I want to see when my auction has closed and who won so that I can complete the sale.

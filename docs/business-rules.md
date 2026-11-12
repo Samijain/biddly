@@ -21,7 +21,7 @@ stateDiagram-v2
 | # | Rule | Enforced by | Status |
 |---|---|---|---|
 | R1 | Only the auction owner can edit a draft | Service + auth (M5) | ⏳ |
-| R2 | A published auction's price rules (starting price, increment) cannot change | Service | ⏳ |
+| R2 | A published auction's price rules (starting price, increment) cannot change | `Auction.updateDetails` (Challenge 6, via R18) | ✅ |
 | R3 | A seller cannot bid on their own auction | Service (M6) | ⏳ |
 | R4 | A bid must arrive before `endTime`, judged by the **server clock** | Service (M6) | ⏳ |
 | R5 | The first bid must be ≥ `startingPrice` (equal is allowed); every later bid must be ≥ `currentPrice + minimumIncrement` | Service (M6) | ⏳ |
@@ -37,6 +37,7 @@ stateDiagram-v2
 | R15 | Only a `DRAFT` can be published, and only while its `endTime` is still in the future | `Auction.publish` (Challenge 5) | ✅ |
 | R16 | Publishing makes an auction `ACTIVE` if `startTime` has arrived, otherwise `SCHEDULED` | `Auction.publish` (Challenge 5) | ✅ |
 | R17 | A `COMPLETED` or `CANCELLED` auction can't be cancelled | `Auction.cancel` (Challenge 5) | ✅ |
+| R18 | Only a `DRAFT` can be edited. An edit re-checks R14 and resets `currentPrice` to the new `startingPrice` | `AuctionService.updateAuction`, `Auction.updateDetails` (Challenge 6) | ✅ |
 
 ## Concurrency: the most important scenario
 
