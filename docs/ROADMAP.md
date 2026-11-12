@@ -10,7 +10,7 @@ Biddly is built one milestone at a time. A milestone is done only when its code,
 | 3 | React UI with mock data: cards, grid, filters, details, countdown | ✅ Done (2026-11-04): UI built, search/filter/sort working (Challenge 3) |
 | 4 | Spring Boot foundation: create auction end to end (Challenge 2), OpenAPI docs | 🟡 Read path, create (Challenge 2), publish and cancel (Challenge 5) and edit (Challenge 6) done; OpenAPI docs open |
 | 5 | Authentication & authorization: register, sign-in, JWT + refresh cookie, roles, ownership | ⏳ |
-| 6 | **Bidding engine**: validation, transactions, locking, idempotency, bid history, winner | ⏳ |
+| 6 | **Bidding engine**: validation, transactions, locking, idempotency, bid history, winner | 🟡 Started early with a demo bidder picker (before M5). Placing a bid with rules R3-R5 and bid history done (Challenge 7). Next: concurrent bids (Challenge 8), then idempotency and the winner |
 | 7 | Real-time & Redis: WebSocket/STOMP updates, cache, rate limiting, auto-close scheduler | ⏳ |
 | 8 | Testing & observability: concurrency tests, Playwright, structured logs, metrics | ⏳ |
 | 9 | Docker: multi-stage images, full `docker compose up --build` | ⏳ |

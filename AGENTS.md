@@ -18,7 +18,7 @@ This is also a **learning project**. The owner writes the business logic; the ag
 ## Repository layout
 
 ```
-backend/         Spring Boot API, package com.biddly (modules: auction, category, user, common, configuration)
+backend/         Spring Boot API, package com.biddly (modules: auction, bid, category, user, common, configuration)
 frontend/        React + TypeScript SPA (app/, components/, features/, hooks/, lib/, pages/)
 exercises/       Stand-alone JS/TS learning exercises (run with node --test)
 infrastructure/  docker/ support files, kubernetes/ manifests (Milestone 11)
@@ -61,7 +61,7 @@ Use `;` to chain commands, not `&&`. Ports 8080 and 5173 are taken on the dev ma
 
 ## Business rules
 
-The server enforces every rule in [docs/business-rules.md](docs/business-rules.md) (R1-R18); the UI only mirrors them. Key rules:
+The server enforces every rule in [docs/business-rules.md](docs/business-rules.md) (R1-R20); the UI only mirrors them. Key rules:
 
 - Sellers can't bid on their own auctions.
 - The **first** bid must be at least `startingPrice`, so a bid equal to the starting price is valid. Every **later** bid must be at least `currentPrice + minimumIncrement`. Every bid must arrive before `endTime`, by the server clock.

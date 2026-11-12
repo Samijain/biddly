@@ -16,7 +16,7 @@ As a visitor, I want to search by keyword, filter by category and change the sor
 **US-03 View auction details** (M0 ✅)
 As a visitor, I want to see the full description, the price rules and the closing time so that I can decide whether to bid.
 
-**US-04 View bid history** (M6)
+**US-04 View bid history** (M6 ✅, built with the Challenge 7 starter)
 As a visitor, I want to see every accepted bid in order so that I can trust the auction is fair.
 - AC: Newest bid first, showing amount, bidder display name and time in my local time zone.
 
@@ -43,9 +43,10 @@ As a seller, I want to see when my auction has closed and who won so that I can 
 
 ## Bidding
 
-**US-20 Place a bid** (M6)
+**US-20 Place a bid** (M6 🟡)
 As a bidder, I want to place a bid and get an immediate yes/no answer with the reason so that I know where I stand.
-- AC: Rejection codes: `BID_TOO_LOW`, `AUCTION_CLOSED`, `SELF_BIDDING_NOT_ALLOWED`.
+- AC ✅ (Challenge 7): Rejection codes: `AUCTION_NOT_ACTIVE`, `AUCTION_CLOSED`, `SELF_BIDDING_NOT_ALLOWED`, `BID_TOO_LOW`; the `BID_TOO_LOW` message names the minimum.
+- AC (Challenge 8): When two bids race, exactly one wins and the other gets a clear `409` answer, never a `500`.
 - AC: Double-clicking "Place bid" never creates two bids (idempotency key).
 
 **US-21 See live price changes** (M7)

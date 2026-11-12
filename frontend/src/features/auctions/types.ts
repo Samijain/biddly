@@ -23,6 +23,8 @@ export interface Auction {
   startingPrice: number
   currentPrice: number
   minimumIncrement: number
+  /** Null until the first bid is accepted. */
+  leadingBidder: SellerSummary | null
   startTime: string
   endTime: string
   status: AuctionStatus

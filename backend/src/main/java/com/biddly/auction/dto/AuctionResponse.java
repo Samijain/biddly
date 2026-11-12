@@ -19,6 +19,8 @@ public record AuctionResponse(
         BigDecimal startingPrice,
         BigDecimal currentPrice,
         BigDecimal minimumIncrement,
+        /** null while there are no bids. */
+        BidderSummary leadingBidder,
         Instant startTime,
         Instant endTime,
         AuctionStatus status,
@@ -28,5 +30,8 @@ public record AuctionResponse(
     }
 
     public record SellerSummary(Long id, String displayName) {
+    }
+
+    public record BidderSummary(Long id, String displayName) {
     }
 }

@@ -6,6 +6,35 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 
 ## [Unreleased]
 
+### Added - Challenge 7: place a bid (2026-11-12)
+
+- `Auction.acceptBid` enforces R3, R4, R5 and R19 as guard clauses in a fixed order:
+  - It compares user ids, not objects.
+  - A bid at exactly `endTime` is too late.
+  - The first-bid minimum depends on whether there is a leader.
+  - `BID_TOO_LOW` names the minimum.
+- `BidService.placeBid` loads the auction and bidder (404s) and reads the server clock once. It applies the rules, then saves the bid in the same transaction as the new price and leader (R20).
+- `POST /api/v1/auctions/{id}/bids` now returns 201. The details page's **Place bid** panel and **Bid history** work end to end.
+- All Challenge 7 tests enabled: 56/56 backend tests pass.
+- Rules R3-R5 marked as enforced; R19 and R20 added; R6 partly enforced (no setters on `Bid`, no update or delete API).
+
+### Added - Challenge 7 starter: place a bid (2026-11-12)
+
+- Flyway migration `V2__create_bids.sql`: an insert-only `bids` table (`auction_id`, `bidder_id`, `amount`, `placed_at`) with named constraints and indexes, and `auctions.leading_bidder_id`.
+- New `bid` module: the immutable `Bid` entity, `BidRepository`, `BidMapper`, `BidService` and `BidController`.
+  - `GET /api/v1/auctions/{id}/bids`: bid history, newest first (US-04).
+  - `POST /api/v1/auctions/{id}/bids` with `PlaceBidRequest`, which returns 501 until Challenge 7 is solved.
+- `AuctionResponse.leadingBidder`, loaded through the existing entity graphs.
+- Stubs: `Auction.acceptBid(bidder, amount, now)` and `BidService.placeBid`.
+- Tests:
+  - Disabled: `AuctionTest.AcceptBid` (10 cases), `BidServiceTest.PlaceBid` (5) and one `BidApiIntegrationTest` case.
+  - Enabled: tests for the bid history and request validation.
+- Frontend:
+  - New `features/bids` module, with a **Place bid** panel that has a demo "Bid as" picker until sign-in exists.
+  - A **Bid history** list on the details page, replacing the disabled bid field.
+  - `minimumNextBid` with tests.
+- Docs: Challenge 7 brief, rules R3-R5 mapped to `Auction.acceptBid`, bids in the database design, README API table, roadmap (M6 started).
+
 ### Added - Milestone 0: project foundation (2026-10-13)
 
 - Monorepo with `backend/`, `frontend/`, `infrastructure/`, `exercises/` and `docs/`.

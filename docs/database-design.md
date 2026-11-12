@@ -2,12 +2,15 @@
 
 PostgreSQL is the **source of truth**. Schema changes are made only through Flyway migrations in `backend/src/main/resources/db/migration`.
 
-## Current schema (V1)
+## Current schema (V1 + V2)
 
 ```mermaid
 erDiagram
     USERS ||--o{ AUCTIONS : sells
     CATEGORIES ||--o{ AUCTIONS : groups
+    AUCTIONS ||--o{ BIDS : receives
+    USERS ||--o{ BIDS : places
+    USERS |o--o{ AUCTIONS : leads
 
     USERS {
         bigint id PK
@@ -37,8 +40,16 @@ erDiagram
         timestamptz end_time "> start_time"
         varchar status
         bigint version "optimistic lock"
+        bigint leading_bidder_id FK "nullable, V2"
         timestamptz created_at
         timestamptz updated_at
+    }
+    BIDS {
+        bigint id PK
+        bigint auction_id FK
+        bigint bidder_id FK
+        numeric amount "12,2 > 0"
+        timestamptz placed_at "server clock"
     }
 ```
 
@@ -51,6 +62,12 @@ erDiagram
 | `idx_auctions_status_end_time` | "Active auctions ordered by end time", the home page query and the auto-close job |
 | `idx_auctions_category_status` | Category filter |
 | `idx_auctions_seller` | "My auctions" and the foreign-key lookup |
+| `ck_bids_amount_positive` | A bid is always more than zero |
+| `idx_bids_auction_placed_at` | Bid history of one auction, newest first |
+| `idx_bids_bidder` | "My bids" (US-24) and the foreign-key lookup |
+| `fk_auctions_leading_bidder` | The leader is a real user; `NULL` until the first bid |
+
+`auctions.current_price` and `leading_bidder_id` are a **denormalised copy** of the highest bid, so lists don't need to scan `bids`. They must change in the same transaction as the bid insert.
 
 ## Planned tables
 
@@ -58,7 +75,6 @@ erDiagram
 |---|---|---|
 | `roles`, `user_roles` | M5 | BIDDER, SELLER, ADMIN |
 | `refresh_tokens` | M5 | Store a hash, never the raw token |
-| `bids` | M6 | `auction_id, bidder_id, amount, status, created_at`; index `(auction_id, amount DESC)`; insert-only |
 | `idempotency_keys` | M6 | Or Redis with a TTL |
 | `watchlist` | M7 | Composite PK `(user_id, auction_id)` |
 | `notifications` | M7 | `read_at` nullable |

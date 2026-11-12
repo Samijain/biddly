@@ -5,6 +5,7 @@ import java.time.Instant;
 import org.springframework.stereotype.Component;
 
 import com.biddly.auction.dto.AuctionResponse;
+import com.biddly.auction.dto.AuctionResponse.BidderSummary;
 import com.biddly.auction.dto.AuctionResponse.CategorySummary;
 import com.biddly.auction.dto.AuctionResponse.SellerSummary;
 
@@ -17,6 +18,7 @@ public class AuctionMapper {
     public AuctionResponse toResponse(Auction auction, Instant serverTime) {
         var category = auction.getCategory();
         var seller = auction.getSeller();
+        var leadingBidder = auction.getLeadingBidder();
         return new AuctionResponse(
                 auction.getId(),
                 auction.getTitle(),
@@ -27,6 +29,7 @@ public class AuctionMapper {
                 auction.getStartingPrice(),
                 auction.getCurrentPrice(),
                 auction.getMinimumIncrement(),
+                leadingBidder == null ? null : new BidderSummary(leadingBidder.getId(), leadingBidder.getDisplayName()),
                 auction.getStartTime(),
                 auction.getEndTime(),
                 auction.getStatus(),

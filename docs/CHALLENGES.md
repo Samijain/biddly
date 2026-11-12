@@ -11,6 +11,7 @@ Ask for a hint whenever you are stuck, and ask for a code review when you are fi
 | 4 | TypeScript domain model (Milestone 2) | TypeScript | Done (2026-10-27) |
 | 5 | Publish and cancel an auction (`Auction.publish`, `Auction.cancel`) | Spring Boot / JPA | ✅ Done (2026-11-10): 22/22 backend tests, verified end to end |
 | 6 | Edit a draft auction (`AuctionService.updateAuction`, `Auction.updateDetails`) | Spring Boot / JPA | ✅ Done (2026-11-12): 35/35 backend tests, shared validation refactor |
+| 7 | Place a bid (`Auction.acceptBid`, `BidService.placeBid`) | Spring Boot / JPA | ✅ Done (2026-11-12): 56/56 backend tests, verified end to end |
 
 ---
 
@@ -263,3 +264,77 @@ The entity check works like `publish`: throw before assigning anything. Inside t
 Hint 3
 
 The service tests freeze time at `NOW`. Read the clock once in `updateAuction` and pass that same instant to the time check and to `toResponse`.
+
+---
+
+## Challenge 7 - Place a bid (Spring Boot / JPA)
+
+**Files:**
+
+- `backend/src/main/java/com/biddly/auction/Auction.java`: `acceptBid(bidder, amount, now)`
+- `backend/src/main/java/com/biddly/bid/BidService.java`: `placeBid(auctionId, request)`
+
+**Tests:** remove `@Disabled` from:
+
+- the nested `AcceptBid` class in `AuctionTest` (10 cases)
+- the nested `PlaceBid` class in `BidServiceTest` (5 cases)
+- `storesAnAcceptedBidAndTheNewPrice` in `BidApiIntegrationTest`
+
+**Run:** `cd backend; .\mvnw.cmd test -Dtest="AuctionTest,BidServiceTest,BidApiIntegrationTest"` (stop the running backend first, or restart it afterwards).
+
+Ready for you:
+
+- **Database:** the `V2__create_bids` migration adds a `bids` table and `auctions.leading_bidder_id`.
+- **Data model and API:** the `Bid` entity, `GET` and `POST /api/v1/auctions/{id}/bids`, and `leadingBidder` in every auction response.
+- **Details page:** a **Place bid** panel with a "Bid as" picker (sign-in comes in Milestone 5) and a **Bid history** list.
+
+Until you finish, placing a bid shows "The server can't take bids yet".
+
+This is the heart of Biddly. A bid is a request to change the auction's price, and the auction decides whether to accept it.
+
+### Acceptance criteria
+
+`Auction.acceptBid(bidder, amount, now)` checks these rules in this order (R3, R4, R5) and changes nothing when a rule fails:
+
+1. Status is not `ACTIVE`: throw `BusinessRuleException("AUCTION_NOT_ACTIVE", ...)`.
+2. `now` is not before `endTime`: throw `AUCTION_CLOSED`. A bid that arrives exactly at the end time is too late.
+3. The bidder is the seller: throw `SELF_BIDDING_NOT_ALLOWED`.
+4. The amount is below the minimum: throw `BID_TOO_LOW`. With no bids yet, the minimum is `startingPrice`. After that it's `currentPrice + minimumIncrement`.
+5. Otherwise set `currentPrice` to the amount and `leadingBidder` to the bidder.
+
+`BidService.placeBid(auctionId, request)`:
+
+1. Load the auction. If the id is unknown, throw `ResourceNotFoundException("Auction", id)`.
+2. Load the bidder. If the id is unknown, throw `ResourceNotFoundException("User", id)`.
+3. Read `now` once from the `clock`. The server's clock decides when a bid arrived, never the browser's.
+4. Call `auction.acceptBid(...)`, then save `new Bid(auction, bidder, amount, now)` and return `bidMapper.toResponse(...)`. A rejected bid must never be saved.
+
+When it works, open live auction 16 ("Selling my iphone", open until 15 November) and bid as Rohan, then as Meera. Try a bid below the minimum, and try bidding as Asha (the seller). Watch the price, the leader and the history update. Then try auction 9: it still says `ACTIVE`, but it ended on 7 November because nothing closes auctions automatically yet (Milestone 7). Your R4 check should reject the bid.
+
+### Learn first
+
+- **Aggregates:** the auction guards its own price, and a `Bid` is a record of what happened. Why is `acceptBid` on `Auction` and not on `Bid`?
+- **Entity identity:** two Java objects can represent the same database row. When is `==` on two `User`s true, and when is it false even though they're the same user?
+- **Hibernate proxies:** `seller` is `LAZY`, so it may be a proxy subclass. What does `getId()` on a proxy do, and why doesn't it hit the database?
+- **`BigDecimal` comparison:** why does `new BigDecimal("1000.0").equals(new BigDecimal("1000.00"))` return `false`? Which method should you use instead?
+- **Transactions:** if `bidRepository.save` throws after `acceptBid` changed the price, what happens to the price change?
+
+### Questions to answer in your PR description
+
+1. Why does the order of the checks matter? Give a request that breaks two rules and say which error the user should see.
+2. How do you know whether an auction has had a bid yet? Why not compare `currentPrice` with `startingPrice`?
+3. Why does `PlaceBidRequest` carry no `placedAt`, even though every bid has a time?
+4. Rohan and Meera both bid ₹1,050 on a ₹1,000 auction at the same millisecond. Walk through what happens with your code. (This is Challenge 8.)
+5. Once sign-in exists, where should `bidderId` come from instead of the request body, and why?
+
+Hint 1
+
+Write the checks as guard clauses, each one an `if` that throws, in the order listed. The last two lines assign `currentPrice` and `leadingBidder`.
+
+Hint 2
+
+`rejectsTheSellerBiddingOnTheirOwnAuction` passes a different `User` object with the seller's id, just like a separate database load would. Compare ids, not objects. Compare money with `compareTo`, not `equals` or `<`.
+
+Hint 3
+
+`leadingBidder` is `null` until the first accepted bid. That tells you which minimum applies.

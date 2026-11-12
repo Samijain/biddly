@@ -13,9 +13,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface AuctionRepository extends JpaRepository<Auction, Long> {
 
-    @EntityGraph(attributePaths = {"seller", "category"})
+    @EntityGraph(attributePaths = {"seller", "category", "leadingBidder"})
     Page<Auction> findByStatus(AuctionStatus status, Pageable pageable);
 
-    @EntityGraph(attributePaths = {"seller", "category"})
+    @EntityGraph(attributePaths = {"seller", "category", "leadingBidder"})
     Optional<Auction> findWithDetailsById(Long id);
 }

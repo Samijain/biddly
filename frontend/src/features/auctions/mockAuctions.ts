@@ -22,6 +22,7 @@ function auction(partial: Partial<Auction> & Pick<Auction, 'id' | 'title' | 'cur
     seller,
     startingPrice: partial.currentPrice,
     minimumIncrement: 500,
+    leadingBidder: null,
     startTime: hours(-1),
     endTime: hours(24),
     status: 'ACTIVE',

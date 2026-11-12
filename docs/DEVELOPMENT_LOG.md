@@ -476,3 +476,90 @@ A seller could create a draft but not fix it. Your auction 8 ended on 2 November
 Backend: 35/35 tests (13 for Challenge 6, plus the Challenge 2 tests guarding the refactor). Manual checks against the running app: PUT to an unknown ID returns 404; a past start time returns 422; editing an `ACTIVE` auction returns 422.
 
 Challenge 6 complete. All of Milestone 4's business logic is done; only the OpenAPI docs remain.
+
+---
+
+## Session 14 - 2026-11-12 - Challenge 7 starter: place a bid
+
+### Why this challenge
+
+You chose to start Milestone 6, the bidding engine, before sign-in (M5). Bidding is what Biddly is about. The roadmap advises getting one correct bidding workflow first. Until M5, a "Bid as" picker stands in for the signed-in user.
+
+### What the tutor prepared
+
+| Layer | Added |
+|---|---|
+| Database | `V2__create_bids.sql`: `bids` (insert-only, `placed_at` from the server clock), `ck_bids_amount_positive`, `idx_bids_auction_placed_at`, `idx_bids_bidder`; `auctions.leading_bidder_id` with `fk_auctions_leading_bidder` |
+| Entity | `Bid` (no setters, never changed after insert, R6); `Auction.leadingBidder` (lazy, included in the entity graphs) |
+| Entity (stub) | `Auction.acceptBid(bidder, amount, now)` with the rules R3-R5 in Javadoc, in a fixed order |
+| Service | `BidService.listBids` (404 for an unknown auction), plus the stub `placeBid` |
+| API | `GET` and `POST /api/v1/auctions/{id}/bids`; `PlaceBidRequest(bidderId, amount)` with `@DecimalMin("1.00")` and `@Digits(10, 2)`; `leadingBidder` in `AuctionResponse` |
+| Tests (disabled) | `AuctionTest.AcceptBid` (7 methods, 10 cases; the self-bid test uses a *different* `User` object with the seller's id), `BidServiceTest.PlaceBid` (5), `BidApiIntegrationTest.storesAnAcceptedBidAndTheNewPrice` |
+| Tests (enabled) | `BidServiceTest` history tests (2), `BidApiIntegrationTest` (empty history, unknown auction, missing amount); `AuctionApiIntegrationTest` now deletes bids before auctions |
+| Frontend | `features/bids`: types, API, `useBids` (5 s polling) and `usePlaceBid` (invalidates every auction query, which includes the bid list); `BidPanel` replaces the disabled bid field on the details page; `BidHistory` below the description; `minimumNextBid` with tests |
+| Docs | Challenge 7 brief, questions and hints; R3-R5 mapped; database design; README; roadmap; user stories |
+
+### Design decisions
+
+- **`leading_bidder_id` on `auctions`:** with only `currentPrice`, "has anyone bid?" can't be answered without a query, so the first-bid rule (R5) can't be decided on the entity. Like `current_price`, it's a denormalised copy of the top bid, kept in the same transaction.
+- **The rules live on `Auction`, saving the bid lives in the service.** The auction owns its price; a `Bid` is a record of an accepted change. This is the same split as `publish` and `updateDetails`.
+- **No `placedAt` in the request:** R4 is judged by the server clock, so the client can't backdate a bid.
+- **Rule order:** not active, then closed, then self-bid, then too low. Tell the user the most basic problem first: there's no point saying "too low" on an auction that has ended.
+- **Concurrency is left out on purpose:** two simultaneous bids can both pass today. That's Challenge 8 (`@Version` or `SELECT ... FOR UPDATE`), and review question 4 sets it up.
+- **The bid list's query key sits under the auction's detail key,** so a successful bid only needs one `invalidateQueries(auctionKeys.all)`.
+
+### Verified
+
+- A reference solution was written temporarily and all 56 backend test cases passed (16 for Challenge 7). The stubs were restored and `mvnw clean` was run.
+- With the stubs: 40 backend cases pass and 13 entries are skipped. Frontend: 12/12 tests, `tsc` and `lint` clean.
+- Against the running app (V2 applied):
+  - `GET .../9/bids` returns `[]`, and an unknown auction returns 404.
+  - `POST .../bids` returns 501, or 400 when the amount is missing.
+  - The details page shows "That's Challenge 7!" after **Place bid**.
+- Auctions 9 and the seed auctions still say `ACTIVE` although their end time has passed, because nothing closes auctions until the Milestone 7 scheduler. The brief uses auction 16 for the happy path, and auction 9 to see R4 reject a bid.
+
+---
+
+## Session 15 - 2026-11-12 - Challenge 7: place a bid completed
+
+### What you built
+
+- `Auction.acceptBid(bidder, amount, now)`: four guard clauses (not active, closed, self-bid, too low), then `currentPrice = amount` and `leadingBidder = bidder`. The minimum is `currentPrice` with no leader, otherwise `currentPrice + minimumIncrement`. The `BID_TOO_LOW` message names it ("Your bid must be at least ₹69750.00").
+- `BidService.placeBid`: load the auction and the bidder (404s), read `now` once, call `acceptBid`, then `bidRepository.save(new Bid(...))` and map the saved entity.
+
+### Bugs found in review, and what each one taught
+
+| Bug | Lesson |
+|---|---|
+| `status.equals("ACTIVE")`, an enum compared with a `String` (also in Challenge 5) | `equals` across types compiles and is always `false`. Compare enums with `==` or `equals(AuctionStatus.ACTIVE)` |
+| `now.isAfter(endTime)`, then `endTime.isBefore(now)` | Both let a bid at exactly `endTime` through. "Before the end" is `now.isBefore(endTime)`, so reject `!now.isBefore(endTime)` |
+| `bidder.getId() == seller.getId()` | `==` on `Long` compares references. It passes for ids from -128 to 127 (the `Long` cache) and silently fails above that |
+| Minimum compared with `currentPrice` only; a too-low later bid fell through an `if` without throwing | A rule that rejects must `throw`. A skipped `if` is a silent no-op, and the service would have saved the bid |
+| `findWithDetailsById` instead of `findById` | It worked in the app but broke the mocks. Stick to the contract the brief and tests set |
+| `new Bid(...)` mapped but never saved | Loaded entities are saved by dirty checking; new ones need `repository.save`. Map the object `save` returns, because it has the generated id |
+| Message `"at least+ ₹+" + currentPrice` | Stray `+` inside the string, and the wrong number (current price, not the minimum). Tests check codes, so read messages by hand |
+
+The final refactor puts the rule in one place: compute `min`, then `if (amount.compareTo(min) < 0) throw ...`.
+
+### Review answers (model answers)
+
+1. **Order:** the user should see the most basic problem first, one that no change to the request can fix. Example: Asha bids ₹10 on ended auction 9, which is closed, a self-bid and too low; the answer is `AUCTION_CLOSED`. A fixed order also makes responses predictable and testable. *Your answer described each rule but not why the order matters.*
+2. **Has it had a bid:** `leadingBidder == null`. `leading_bidder_id` is a foreign key to `users`. Price comparison can't work: R5 allows a first bid equal to the starting price, so after one bid `currentPrice == startingPrice` is still true, and a second bid at the same price would be accepted.
+3. **No `placedAt`:** trust, not time zones. A client could backdate a bid past `endTime`, and device clocks drift. The server's clock is the only authority for R4 and for bid order. (Storing UTC and displaying local time is true, but it's a different point.)
+4. **Two ₹1,050 bids at once:** both transactions read version 0 and pass the rules. The first commits (`UPDATE ... WHERE version = 0` gives version 1). The second's `UPDATE` matches zero rows, Hibernate throws an optimistic-locking exception, and that transaction rolls back, bid included. Data stays consistent, but the loser gets a **500** from the catch-all handler. *You expected a lost update; `@Version` was already on `Auction`, so it's a bad response, not bad data.* This is Challenge 8.
+5. **`bidderId`:** from the authenticated principal (the JWT through Spring Security), never the request body. Otherwise anyone can bid as anyone. `sellerId` on create works the same way. Both leave the request records in Milestone 5.
+
+### Verified
+
+- Backend: 56/56 (16 for Challenge 7, plus every earlier test).
+- Manual checks against the running app (auction 16):
+  - A ₹64,999 first bid gets `BID_TOO_LOW`; ₹65,000 is accepted.
+  - Meera's ₹65,400 gets `BID_TOO_LOW`; ₹65,500 is accepted.
+  - Asha's bid gets `SELF_BIDDING_NOT_ALLOWED`.
+  - Auction 9 gets `AUCTION_CLOSED`; `SCHEDULED` auction 10 gets `AUCTION_NOT_ACTIVE`.
+  - An unknown auction or bidder returns 404; ₹0.50 returns 400.
+  - A UI bid updated the price, the leader, the minimum and the history.
+- Rejected bids were never stored.
+
+Challenge 7 complete.
+

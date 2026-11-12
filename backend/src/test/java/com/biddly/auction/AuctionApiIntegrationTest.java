@@ -17,6 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import com.biddly.TestcontainersConfiguration;
+import com.biddly.bid.BidRepository;
 import com.biddly.user.User;
 import com.biddly.user.UserRepository;
 
@@ -36,10 +37,14 @@ class AuctionApiIntegrationTest {
     @Autowired
     UserRepository userRepository;
 
+    @Autowired
+    BidRepository bidRepository;
+
     private Auction draft;
 
     @BeforeEach
     void setUp() {
+        bidRepository.deleteAll();
         auctionRepository.deleteAll();
         userRepository.deleteAll();
         var seller = userRepository.save(new User("Test Seller", "seller@test.dev"));

@@ -85,6 +85,8 @@ cd frontend; npm run lint; npm run typecheck
 | PUT | `/api/v1/auctions/{id}` | Done (edits a `DRAFT`) |
 | POST | `/api/v1/auctions/{id}/publish` | Done (`DRAFT` to `ACTIVE` or `SCHEDULED`) |
 | POST | `/api/v1/auctions/{id}/cancel` | Done (to `CANCELLED`) |
+| GET | `/api/v1/auctions/{id}/bids` | Done (newest first) |
+| POST | `/api/v1/auctions/{id}/bids` | Done (rules R3-R5; concurrency in Challenge 8) |
 | GET | `/api/v1/categories` | Done |
 | GET | `/actuator/health` | Done |
 

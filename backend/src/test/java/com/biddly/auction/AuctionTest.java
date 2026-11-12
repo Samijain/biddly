@@ -150,6 +150,109 @@ class AuctionTest {
         }
     }
 
+    @Nested
+    class AcceptBid {
+
+        private final User seller = user(1L, "Asha Seller");
+        private final User rohan = user(2L, "Rohan Bidder");
+        private final User meera = user(3L, "Meera Bidder");
+
+        /** Starting price 1000.00, increment 50.00, ends one hour after NOW. */
+        private Auction liveAuction() {
+            var auction = new Auction(seller, null, "Vintage clock", "Brass, 1920s", null,
+                    new BigDecimal("1000.00"), new BigDecimal("50.00"),
+                    NOW.minus(1, ChronoUnit.HOURS), NOW.plus(1, ChronoUnit.HOURS));
+            withStatus(auction, AuctionStatus.ACTIVE);
+            return auction;
+        }
+
+        @Test
+        void acceptsAFirstBidEqualToTheStartingPrice() {
+            var auction = liveAuction();
+
+            auction.acceptBid(rohan, new BigDecimal("1000.00"), NOW);
+
+            assertThat(auction.getCurrentPrice()).isEqualByComparingTo("1000.00");
+            assertThat(auction.getLeadingBidder()).isSameAs(rohan);
+        }
+
+        @Test
+        void rejectsAFirstBidBelowTheStartingPrice() {
+            var auction = liveAuction();
+
+            assertThatThrownBy(() -> auction.acceptBid(rohan, new BigDecimal("999.99"), NOW))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("BID_TOO_LOW");
+            assertThat(auction.getCurrentPrice()).isEqualByComparingTo("1000.00");
+            assertThat(auction.getLeadingBidder()).isNull();
+        }
+
+        @Test
+        void requiresTheIncrementOnceThereIsABid() {
+            var auction = liveAuction();
+            auction.acceptBid(rohan, new BigDecimal("1000.00"), NOW);
+
+            assertThatThrownBy(() -> auction.acceptBid(meera, new BigDecimal("1049.99"), NOW))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("BID_TOO_LOW");
+            assertThat(auction.getLeadingBidder()).isSameAs(rohan);
+
+            auction.acceptBid(meera, new BigDecimal("1050.00"), NOW);
+
+            assertThat(auction.getCurrentPrice()).isEqualByComparingTo("1050.00");
+            assertThat(auction.getLeadingBidder()).isSameAs(meera);
+        }
+
+        @Test
+        void acceptsABidAboveTheMinimum() {
+            var auction = liveAuction();
+
+            auction.acceptBid(rohan, new BigDecimal("1800.00"), NOW);
+
+            assertThat(auction.getCurrentPrice()).isEqualByComparingTo("1800.00");
+        }
+
+        @ParameterizedTest
+        @EnumSource(value = AuctionStatus.class, names = {"DRAFT", "SCHEDULED", "COMPLETED", "CANCELLED"})
+        void rejectsBidsWhenTheAuctionIsNotActive(AuctionStatus status) {
+            var auction = liveAuction();
+            withStatus(auction, status);
+
+            assertThatThrownBy(() -> auction.acceptBid(rohan, new BigDecimal("1000.00"), NOW))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("AUCTION_NOT_ACTIVE");
+            assertThat(auction.getLeadingBidder()).isNull();
+        }
+
+        @Test
+        void rejectsABidThatArrivesExactlyAtTheEndTime() {
+            var auction = liveAuction();
+
+            assertThatThrownBy(() -> auction.acceptBid(rohan, new BigDecimal("1000.00"), auction.getEndTime()))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("AUCTION_CLOSED");
+            assertThat(auction.getLeadingBidder()).isNull();
+        }
+
+        @Test
+        void rejectsTheSellerBiddingOnTheirOwnAuction() {
+            var auction = liveAuction();
+            // The same person, loaded as a different object: compare identities, not object references.
+            var sellerLoadedAgain = user(1L, "Asha Seller");
+
+            assertThatThrownBy(() -> auction.acceptBid(sellerLoadedAgain, new BigDecimal("1000.00"), NOW))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("SELF_BIDDING_NOT_ALLOWED");
+            assertThat(auction.getLeadingBidder()).isNull();
+        }
+    }
+
+    private static User user(Long id, String name) {
+        var user = new User(name, name.toLowerCase().replace(' ', '.') + "@test.dev");
+        ReflectionTestUtils.setField(user, "id", id);
+        return user;
+    }
+
     private static Auction draft(Instant start, Instant end) {
         return new Auction(new User("Asha", "asha@test.dev"), null, "Vintage clock", "Brass, 1920s", null,
                 new BigDecimal("1000.00"), new BigDecimal("50.00"), start, end);

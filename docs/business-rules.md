@@ -22,10 +22,10 @@ stateDiagram-v2
 |---|---|---|---|
 | R1 | Only the auction owner can edit a draft | Service + auth (M5) | ⏳ |
 | R2 | A published auction's price rules (starting price, increment) cannot change | `Auction.updateDetails` (Challenge 6, via R18) | ✅ |
-| R3 | A seller cannot bid on their own auction | Service (M6) | ⏳ |
-| R4 | A bid must arrive before `endTime`, judged by the **server clock** | Service (M6) | ⏳ |
-| R5 | The first bid must be ≥ `startingPrice` (equal is allowed); every later bid must be ≥ `currentPrice + minimumIncrement` | Service (M6) | ⏳ |
-| R6 | Accepted bids can never be edited or deleted | No update/delete API; DB permissions | ⏳ |
+| R3 | A seller cannot bid on their own auction | `Auction.acceptBid`, comparing user ids (Challenge 7) | ✅ |
+| R4 | A bid must arrive before `endTime`, judged by the **server clock**. A bid at exactly `endTime` is too late | `Auction.acceptBid` with `now` from `BidService`'s `Clock` (Challenge 7) | ✅ |
+| R5 | The first bid must be ≥ `startingPrice` (equal is allowed); every later bid must be ≥ `currentPrice + minimumIncrement`. "First" means `leadingBidder` is `null` | `Auction.acceptBid` (Challenge 7) | ✅ |
+| R6 | Accepted bids can never be edited or deleted | `Bid` has no setters; no update/delete API. DB permissions later | 🟡 |
 | R7 | A completed auction has at most one winning bid | Service + partial unique index (M6) | ⏳ |
 | R8 | An auction with no bids closes without a winner | Scheduler (M7) | ⏳ |
 | R9 | All timestamps are stored in UTC | `TIMESTAMPTZ`, `Instant`, `hibernate.jdbc.time_zone=UTC` | ✅ |
@@ -38,6 +38,8 @@ stateDiagram-v2
 | R16 | Publishing makes an auction `ACTIVE` if `startTime` has arrived, otherwise `SCHEDULED` | `Auction.publish` (Challenge 5) | ✅ |
 | R17 | A `COMPLETED` or `CANCELLED` auction can't be cancelled | `Auction.cancel` (Challenge 5) | ✅ |
 | R18 | Only a `DRAFT` can be edited. An edit re-checks R14 and resets `currentPrice` to the new `startingPrice` | `AuctionService.updateAuction`, `Auction.updateDetails` (Challenge 6) | ✅ |
+| R19 | Only an `ACTIVE` auction accepts bids. Checks run in a fixed order (not active, closed, self-bid, too low) so the user sees the most basic problem first | `Auction.acceptBid` (Challenge 7) | ✅ |
+| R20 | A rejected bid is never stored; an accepted bid, the new price and the new leader are saved in one transaction | `BidService.placeBid` (`@Transactional`) (Challenge 7) | ✅ |
 
 ## Concurrency: the most important scenario
 
@@ -51,6 +53,8 @@ A writes current = 1100             B writes current = 1200
 ```
 
 The plan for Milestone 6: inside one database transaction, **lock or version** the auction row, re-read the price, validate, insert the bid, update the price, commit, and only then publish the update. You will compare `SELECT ... FOR UPDATE` (pessimistic) with `@Version` (optimistic).
+
+**Where we are after Challenge 7:** `Auction` already has `@Version`, so the scenario above can't corrupt data. The second commit runs `UPDATE ... WHERE version = 0`, changes zero rows, and its whole transaction (bid included) rolls back. But the losing bidder gets a **500** instead of a clear answer. Fixing that is Challenge 8.
 
 ## Open questions for you
 

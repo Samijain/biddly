@@ -1,7 +1,5 @@
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded'
-import GavelRounded from '@mui/icons-material/GavelRounded'
 import SearchOffRounded from '@mui/icons-material/SearchOffRounded'
-import Alert from '@mui/material/Alert'
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -11,10 +9,8 @@ import Chip from '@mui/material/Chip'
 import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
 import Grid from '@mui/material/Grid'
-import InputAdornment from '@mui/material/InputAdornment'
 import Skeleton from '@mui/material/Skeleton'
 import Stack from '@mui/material/Stack'
-import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink, useParams } from 'react-router'
 
@@ -24,6 +20,8 @@ import { AuctionImage } from '../features/auctions/components/AuctionImage'
 import { Countdown } from '../features/auctions/components/Countdown'
 import { useAuction } from '../features/auctions/hooks'
 import type { AuctionStatus } from '../features/auctions/types'
+import { BidHistory } from '../features/bids/components/BidHistory'
+import { BidPanel } from '../features/bids/components/BidPanel'
 import { formatDateTime, formatPrice } from '../lib/format'
 
 const statusColor: Record<AuctionStatus, 'default' | 'info' | 'success' | 'error'> = {
@@ -77,6 +75,11 @@ export function AuctionDetailsPage() {
               </Typography>
             </Box>
           )}
+          {auction && auction.status !== 'DRAFT' && (
+            <Box sx={{ mt: 4 }}>
+              <BidHistory auctionId={auction.id} />
+            </Box>
+          )}
         </Grid>
 
         <Grid size={{ xs: 12, md: 5 }}>
@@ -124,20 +127,7 @@ export function AuctionDetailsPage() {
 
                     <Divider />
 
-                    {/* Bidding is wired up in Milestone 6 (bidding engine). */}
-                    <TextField
-                      label="Your bid"
-                      type="number"
-                      disabled
-                      helperText={`Minimum next bid: ${formatPrice(auction.currentPrice + auction.minimumIncrement)}`}
-                      slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> } }}
-                    />
-                    <Button size="large" variant="contained" startIcon={<GavelRounded />} disabled>
-                      Place bid
-                    </Button>
-                    <Alert severity="info" variant="outlined">
-                      Bidding unlocks in Milestone 6, when you build the bidding engine.
-                    </Alert>
+                    <BidPanel auction={auction} />
                   </Stack>
                 </CardContent>
               </Card>

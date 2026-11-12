@@ -58,6 +58,11 @@ public class Auction {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal minimumIncrement;
 
+    /** Who placed the current highest bid; null while there are no bids. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "leading_bidder_id")
+    private User leadingBidder;
+
     @Column(nullable = false)
     private Instant startTime;
 
@@ -153,6 +158,34 @@ public class Auction {
 
     }
 
+    /**
+     * Accepts a bid if it follows the rules, checked in this order, and throws before changing anything:
+     *   1. status is not ACTIVE                -> BusinessRuleException("AUCTION_NOT_ACTIVE", ...)
+     *   2. now is not before endTime (R4)      -> BusinessRuleException("AUCTION_CLOSED", ...)
+     *   3. the bidder is the seller (R3)       -> BusinessRuleException("SELF_BIDDING_NOT_ALLOWED", ...)
+     *   4. amount is below the minimum (R5)    -> BusinessRuleException("BID_TOO_LOW", ...)
+     *        no bids yet:  minimum = startingPrice
+     *        otherwise:    minimum = currentPrice + minimumIncrement
+     *   5. otherwise -> currentPrice becomes amount, leadingBidder becomes bidder
+     *
+     * Saving the Bid row is the service's job; this method only guards and updates the auction.
+     */
+    public void acceptBid(User bidder, BigDecimal amount, Instant now) {
+        if(!status.equals(AuctionStatus.ACTIVE))
+            throw new BusinessRuleException("AUCTION_NOT_ACTIVE","Auction is not active yet.");
+        if(!endTime.isAfter(now))
+            throw new BusinessRuleException("AUCTION_CLOSED","Auction is closed");
+        if(bidder.getId().compareTo(seller.getId()) == 0)
+            throw new BusinessRuleException("SELF_BIDDING_NOT_ALLOWED","Self bidding is not allowed");
+        BigDecimal min = leadingBidder == null ? startingPrice : currentPrice.add(minimumIncrement);
+        if(amount.compareTo(min) < 0) {
+            throw new BusinessRuleException("BID_TOO_LOW", "Your bid must be at least ₹" + min);
+        }
+
+        currentPrice = amount;
+        leadingBidder = bidder;
+    }
+
     public Long getId() {
         return id;
     }
@@ -187,6 +220,10 @@ public class Auction {
 
     public BigDecimal getMinimumIncrement() {
         return minimumIncrement;
+    }
+
+    public User getLeadingBidder() {
+        return leadingBidder;
     }
 
     public Instant getStartTime() {
