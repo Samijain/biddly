@@ -137,6 +137,35 @@ public class Auction {
     }
 
     /**
+     * CHALLENGE 9 - see docs/CHALLENGES.md. Called by the lifecycle job when the start time arrives (R22).
+     *   1. status is not SCHEDULED       -> BusinessRuleException("AUCTION_NOT_SCHEDULED", ...)
+     *   2. startTime is after now        -> BusinessRuleException("START_TIME_NOT_REACHED", ...)
+     *   3. otherwise                     -> status becomes ACTIVE
+     */
+    public void start(Instant now) {
+        if(status != AuctionStatus.SCHEDULED)
+            throw new BusinessRuleException("AUCTION_NOT_SCHEDULED","Only a scheduled auction can be started");
+        if(startTime.isAfter(now))
+            throw new BusinessRuleException("START_TIME_NOT_REACHED","Auctions start time is not yet reached");
+        status = AuctionStatus.ACTIVE;
+    }
+
+    /**
+     * CHALLENGE 9 - see docs/CHALLENGES.md. Called by the lifecycle job when the end time arrives (R7, R8, R22).
+     *   1. status is not ACTIVE          -> BusinessRuleException("AUCTION_NOT_ACTIVE", ...)
+     *   2. now is before endTime         -> BusinessRuleException("END_TIME_NOT_REACHED", ...)
+     *   3. otherwise                     -> status becomes COMPLETED
+     * The leading bidder at that moment is the winner (R7); no leader means no winner (R8). Don't change leadingBidder.
+     */
+    public void complete(Instant now) {
+        if(status != AuctionStatus.ACTIVE)
+            throw new BusinessRuleException("AUCTION_NOT_ACTIVE","Only a active auction can be completed");
+        if(now.isBefore(endTime))
+            throw new BusinessRuleException("END_TIME_NOT_REACHED","Auctions end time is not yet reached");
+        status = AuctionStatus.COMPLETED;
+    }
+
+    /**
      * Replaces the editable details of a draft (rules R2, R18). The service has already checked the time
      * window and looked up the category.
      *   1. status is not DRAFT  -> BusinessRuleException("AUCTION_NOT_EDITABLE", ...), nothing changes

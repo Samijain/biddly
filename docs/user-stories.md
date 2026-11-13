@@ -37,9 +37,10 @@ As a seller, I want to cancel my auction before anyone has bid.
 As a seller, I want to change my draft before publishing so that I can fix mistakes.
 - AC: Only the owner can edit (R1, added in M5), and only while the auction is `DRAFT` (R18). Price rules are locked after publishing (R2).
 
-**US-14 See the result** (M7)
+**US-14 See the result** (Challenge 9, pulled forward from M7)
 As a seller, I want to see when my auction has closed and who won so that I can complete the sale.
-- AC: Moves to `COMPLETED` automatically at `endTime`, with one winner (R7) or none if nobody bid (R8).
+- AC ✅ (Challenge 9): Moves to `COMPLETED` automatically at `endTime`, with one winner (R7) or none if nobody bid (R8). A `SCHEDULED` auction becomes `ACTIVE` at `startTime` (R22).
+- AC ✅ (UI ready): The details page shows "Sold to X for ₹Y" or "closed without any bids", and the price label reads "Final price".
 
 ## Bidding
 

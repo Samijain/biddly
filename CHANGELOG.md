@@ -6,6 +6,23 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 
 ## [Unreleased]
 
+### Added - Challenge 9: auction scheduler (2026-11-13)
+
+- `Auction.start` and `Auction.complete` with guard clauses (`AUCTION_NOT_SCHEDULED`, `START_TIME_NOT_REACHED`, `AUCTION_NOT_ACTIVE`, `END_TIME_NOT_REACHED`). Completing keeps the leading bidder as the winner, or none if nobody bid.
+- `AuctionLifecycleService.advance` starts every due auction, then completes every ended one, in one transaction with one `now`.
+- All Challenge 9 tests enabled: 81/81 backend tests.
+- Rules R7, R8 and R22 and story US-14 marked as done.
+
+### Added - Challenge 9 starter: auction scheduler (2026-11-12)
+
+- `AuctionLifecycleJob` runs every 5 seconds (`@Scheduled`, fixed delay) and calls `AuctionLifecycleService.advance()`. Until the challenge is done it logs a single "not implemented" warning.
+- `SchedulingConfig` enables scheduling. `biddly.scheduler.enabled` and `biddly.scheduler.interval-ms` (env `SCHEDULER_ENABLED`, `SCHEDULER_INTERVAL_MS`) control it, and the `test` profile turns it off.
+- `AuctionRepository`: derived queries `findByStatusAndStartTimeLessThanEqual` and `findByStatusAndEndTimeLessThanEqual`.
+- Stubs for the challenge: `Auction.start`, `Auction.complete`, `AuctionLifecycleService.advance`.
+- Disabled tests: `AuctionTest` `Start` and `Complete`, `AuctionLifecycleServiceTest`, and `AuctionLifecycleIntegrationTest` (one run over seven auctions in different states). Enabled: the job bean is absent in tests.
+- Frontend: the bid panel explains why bidding is closed ("Sold to X for ₹Y", "closed without any bids", "Bidding opens …", "cancelled"), and the price label reads "Final price" once an auction is completed.
+- Rule R22 and the Challenge 9 brief; R7 and R8 mapped to `Auction.complete`.
+
 ### Added - Rule R10: no cancelling once bids exist (2026-11-12)
 
 - `Auction.cancel` rejects an auction that has a leading bidder with 422 `AUCTION_HAS_BIDS`, after the R17 check. The rule lives on the entity, not in `AuctionService`, so every caller of `cancel()` gets it.

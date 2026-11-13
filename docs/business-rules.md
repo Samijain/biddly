@@ -26,8 +26,8 @@ stateDiagram-v2
 | R4 | A bid must arrive before `endTime`, judged by the **server clock**. A bid at exactly `endTime` is too late | `Auction.acceptBid` with `now` from `BidService`'s `Clock` (Challenge 7) | ✅ |
 | R5 | The first bid must be ≥ `startingPrice` (equal is allowed); every later bid must be ≥ `currentPrice + minimumIncrement`. "First" means `leadingBidder` is `null` | `Auction.acceptBid` (Challenge 7) | ✅ |
 | R6 | Accepted bids can never be edited or deleted | `Bid` has no setters; no update/delete API. DB permissions later | 🟡 |
-| R7 | A completed auction has at most one winning bid | Service + partial unique index (M6) | ⏳ |
-| R8 | An auction with no bids closes without a winner | Scheduler (M7) | ⏳ |
+| R7 | A completed auction has at most one winning bid | `Auction.complete` keeps `leadingBidder` as the winner. It is a single column, so there can only be one (Challenge 9) | ✅ |
+| R8 | An auction with no bids closes without a winner | `Auction.complete` leaves `leadingBidder` `null` (Challenge 9) | ✅ |
 | R9 | All timestamps are stored in UTC | `TIMESTAMPTZ`, `Instant`, `hibernate.jdbc.time_zone=UTC` | ✅ |
 | R10 | Cancellation is not allowed once valid bids exist | `Auction.cancel` (`AUCTION_HAS_BIDS`); a race with a first bid is caught by `@Version` (409) | ✅ |
 | R11 | Money is exact decimal (`NUMERIC(12,2)`), never floating point | Schema + `BigDecimal` | ✅ |
@@ -41,6 +41,7 @@ stateDiagram-v2
 | R19 | Only an `ACTIVE` auction accepts bids. Checks run in a fixed order (not active, closed, self-bid, too low) so the user sees the most basic problem first | `Auction.acceptBid` (Challenge 7) | ✅ |
 | R20 | A rejected bid is never stored; an accepted bid, the new price and the new leader are saved in one transaction | `BidService.placeBid` (`@Transactional`) (Challenge 7) | ✅ |
 | R21 | When bids race, exactly one wins. The others get a clear answer (`409 CONCURRENT_UPDATE` or `422 BID_TOO_LOW`), never a `500` | `@Version` on `Auction`, `GlobalExceptionHandler`, `SELECT ... FOR UPDATE` in `placeBid` (Challenge 8) | ✅ |
+| R22 | Auctions move on time without anyone clicking: `SCHEDULED` → `ACTIVE` once `startTime` arrives, `ACTIVE` → `COMPLETED` once `endTime` arrives. Only these two moves happen automatically; `DRAFT` and `CANCELLED` are never touched | `Auction.start`, `Auction.complete`, `AuctionLifecycleService.advance`, run every 5 s by `AuctionLifecycleJob` (Challenge 9) | ✅ |
 
 ## Concurrency: the most important scenario
 

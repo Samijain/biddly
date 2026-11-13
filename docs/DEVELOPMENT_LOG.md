@@ -654,3 +654,85 @@ You spotted that R10 was still open and implemented it yourself, without a chall
 - **Concurrency:** a cancel racing the first bid is already safe. Cancel loads without the lock; if a bid commits a leader first, cancel's `UPDATE ... WHERE version = ?` fails, and the seller gets 409 `CONCURRENT_UPDATE` from the Challenge 8 handler. Loading with `findByIdForUpdate` would turn that into a clearer 422; optional.
 - **Tutor added:** one entity test and one HTTP test, hiding **Cancel auction** in `AuctionActions` when there's a leader, and the docs.
 
+---
+
+## Session 19 - 2026-11-12 - Challenge 9 starter: auction scheduler
+
+### Why this challenge
+
+You published auction 17 to start one minute later, and it stayed `SCHEDULED`. Nothing in the app re-checks the clock: `publish` decides `SCHEDULED` or `ACTIVE` once, and no code moves an auction on after that. The same gap leaves ended auctions `ACTIVE` with no winner, which blocks US-14 (see the result), R7 and R8.
+
+### What the tutor prepared
+
+| Layer | Added |
+|---|---|
+| Config | `SchedulingConfig` (`@EnableScheduling`), properties `biddly.scheduler.enabled` and `interval-ms`; the `test` profile turns the scheduler off |
+| Job | `AuctionLifecycleJob`: `@Scheduled(fixedDelay = 5 s)`, calls the service, logs only when something changed, warns once while the challenge is unimplemented, and survives errors so the next run retries |
+| Repository | `findByStatusAndStartTimeLessThanEqual`, `findByStatusAndEndTimeLessThanEqual` (derived queries) |
+| Stubs | `Auction.start`, `Auction.complete`, `AuctionLifecycleService.advance` |
+| Tests (disabled) | `AuctionTest.Start` (3) and `Complete` (6), `AuctionLifecycleServiceTest` (5), `AuctionLifecycleIntegrationTest.movesEveryAuctionToTheRightStateInOneRun` |
+| Test (enabled) | `doesNotRunTheBackgroundJobInTests` |
+| Frontend | `BidPanel` explains why bidding is closed (sold, no bids, opens at, cancelled); "Final price" label on completed auctions |
+| Docs | Challenge 9 brief, questions and hints; rule R22; R7, R8 and US-14 mapped |
+
+### Design decisions
+
+- **The job is thin; the service holds the logic; the entity holds the rules.** The job only knows "when", the service knows "which auctions", and `start`/`complete` know "is this allowed". Each is tested on its own, and the tests never wait on a timer.
+- **Scheduler off in tests.** A background thread changing auctions while a test runs would make other tests flaky. Tests call `advance()` with a known clock.
+- **`fixedDelay`, not `fixedRate`.** The next run starts 5 s after the previous one *ends*, so runs never overlap.
+- **Start before complete, in one transaction.** An auction whose whole window passed while it was `SCHEDULED` (auctions 10, 11, 12 and 14) goes `SCHEDULED` → `ACTIVE` → `COMPLETED` in one run, because Hibernate flushes the start before the second query. Whether one transaction for all auctions is right is review question 1.
+- **Late bids are not a scheduler problem.** R4 in `acceptBid` already rejects bids at or after `endTime`, so the 5 s lag only affects what the status *says*, never who wins.
+- **Entity methods, not a bulk `UPDATE`.** The rules and `@Version` stay in play; the cost is loading each auction. Review question 5.
+
+### Verified
+
+- With the stubs: the full suite passes and all 15 Challenge 9 tests are skipped.
+- A temporary reference solution with every test enabled: 81/81, including the auction that starts and completes in one run. The stubs were then restored.
+- **Incident:** the running dev backend hot-reloaded the reference solution, and one real run changed 11 auctions in the dev database. Their statuses and versions were put back by hand, so the challenge can still be seen working live. Lesson: stop the dev backend before checking a reference solution once a scheduled job exists.
+- Frontend: type check, lint and 12/12 tests pass.
+
+---
+
+## Session 20 - 2026-11-13 - Challenge 9: auction scheduler completed
+
+### How the code evolved
+
+- **First version:** both `while (i > 0)` loops in `advance()` never decreased `i`. It would not have hung: the second `start()` on the same auction throws `AUCTION_NOT_SCHEDULED`, so every run would have rolled back and logged an error every 5 seconds. Fixed with `i--` before the dev backend reloaded it.
+- **Review fixes:**
+  - The `END_TIME_NOT_REACHED` message no longer says "start time".
+  - The error messages no longer say "not yet …", which was wrong for a `COMPLETED` auction.
+  - `draftAuctions` is renamed `dueToStart` (they're scheduled, not drafts).
+  - The loops are now plain `for` loops with no counter to forget.
+  - `complete` compares the enum with `!=`.
+- **Final:** guard clauses, then one assignment, in `start` and `complete`. `advance()` reads `now` once, starts, then completes, and returns both sizes.
+
+### Verified
+
+- 81/81 backend tests, all Challenge 9 tests enabled.
+- **Live:** after the reload, one run logged "started 5, completed 10":
+  - auction 18 became `ACTIVE`;
+  - auctions 10, 11, 12 and 14 went `SCHEDULED` → `COMPLETED` in one run;
+  - auctions 1, 2, 4, 5, 6 and 9 completed without a winner;
+  - auction 16 stays live with Rohan leading.
+
+### Review answers
+
+1. **One transaction for all auctions:** *you said* one failure rolls back the rest. Correct. *Missed:* the failing auction comes back every run, so no auction ever closes (a "poison pill"). One transaction per auction isolates failures. It costs one commit per auction, allows a run where only some auctions move, and needs a separate bean or `TransactionTemplate`, because `@Transactional` on a `this.` call is skipped.
+2. **A bid racing the job:** *you said* the job wins and the bidder sees the optimistic-lock message. Reversed: whoever commits first wins, and only the job can get the optimistic-lock failure.
+   - **Bid first:** the bid succeeds with 201, the job's `UPDATE ... WHERE version = ?` fails, its run rolls back, and the next run completes the auction with the new winner.
+   - **Job first:** the bid's `SELECT ... FOR UPDATE` reads `COMPLETED`, and the bidder gets 422 `AUCTION_NOT_ACTIVE`.
+3. **A bid 3 s after the end:** *you said* no, because the job marks it completed in time. "No" is right, the reason isn't. The status can lag by up to 5 s; R4 in `acceptBid` (`!endTime.isAfter(now)`) rejects the bid against the server clock. The lag only affects what is shown.
+4. **Two backend copies:** *you said* nothing goes wrong because of locking. Not quite: the job doesn't take the row lock.
+   - **What happens:** both copies complete the same auctions. One commits; the other's run fails on `@Version` and rolls back. The data stays correct, but work is wasted and errors are logged.
+   - **The real risk:** side effects like "You won!" emails, which `@Version` can't undo, get sent twice.
+   - **Fixes:** run the job on one copy only (`SCHEDULER_ENABLED=false` elsewhere), use ShedLock or a PostgreSQL advisory lock, or load the auctions with `FOR UPDATE SKIP LOCKED`.
+5. **A bulk `UPDATE`:** *you said* auctions ending mid-query would be a problem. They aren't: the statement is atomic with one `now()`, and the next run catches them. A bulk update would lose:
+   - the entity guard clauses (rules duplicated in SQL);
+   - the `@Version` check and bump. A racing cancel could overwrite `COMPLETED`, a lost update;
+   - `updated_at`;
+   - in sync in-memory entities;
+   - the app's `Clock` (`now()` is the database's clock);
+   - the list of winners needed for notifications.
+
+Challenge 9 complete. Milestone 6 still needs idempotency keys. Milestone 7 still needs live updates (WebSocket) and notifications; the scheduler is ready to trigger the "You won" notification.
+

@@ -13,6 +13,7 @@ Ask for a hint whenever you are stuck, and ask for a code review when you are fi
 | 6 | Edit a draft auction (`AuctionService.updateAuction`, `Auction.updateDetails`) | Spring Boot / JPA | ✅ Done (2026-11-12): 35/35 backend tests, shared validation refactor |
 | 7 | Place a bid (`Auction.acceptBid`, `BidService.placeBid`) | Spring Boot / JPA | ✅ Done (2026-11-12): 56/56 backend tests, verified end to end |
 | 8 | Concurrent bids: optimistic vs pessimistic locking | Spring Boot / JPA / PostgreSQL | ✅ Done (2026-11-12): 59/59 backend tests, 8-bidder race tests against PostgreSQL |
+| 9 | Auction scheduler: start and close auctions on time (`Auction.start`, `Auction.complete`, `AuctionLifecycleService.advance`) | Spring Boot / JPA | ✅ Done (2026-11-13): 81/81 backend tests, 11 dev auctions moved in one live run |
 
 ---
 
@@ -414,3 +415,71 @@ Spring Data lets you put `@Lock` on a query method. With JPQL it looks like `@Qu
 Hint 3
 
 If part 2's test still sees 409s, check that `placeBid` really calls the new method, and that the backend you're testing was rebuilt.
+
+---
+
+## Challenge 9 - Auction scheduler (Spring Boot / JPA)
+
+**Why:** today nothing moves an auction forward in time. You published auction 17 with a start time one minute away, and it stayed `SCHEDULED` forever. Ended auctions also stay `ACTIVE` with no winner. This challenge adds the background job that keeps statuses in step with the clock.
+
+**Files:**
+
+- `backend/src/main/java/com/biddly/auction/Auction.java`: implement `start(Instant now)` and `complete(Instant now)`.
+- `backend/src/main/java/com/biddly/auction/AuctionLifecycleService.java`: implement `advance()`.
+
+**Ready for you (don't change unless you want to):**
+
+- `AuctionLifecycleJob` calls `advance()` every 5 seconds with `@Scheduled`. It logs what changed. Until you implement `advance()`, it logs one "not implemented" warning and keeps quiet afterwards.
+- `SchedulingConfig` turns scheduling on. Both are switched off in the `test` profile, so tests call `advance()` directly and never race a background thread.
+- `AuctionRepository` has the two queries you need: `findByStatusAndStartTimeLessThanEqual` and `findByStatusAndEndTimeLessThanEqual`. Read their names: Spring Data builds the SQL from them.
+- The bid panel already says "Sold to X for ₹Y", "Closed without bids" or "Bidding opens …", and the price label becomes "Final price" once the auction is `COMPLETED`.
+
+**Tests:** remove `@Disabled("CHALLENGE 9 ...")` from:
+
+- `AuctionTest` nested classes `Start` and `Complete` (entity rules).
+- `AuctionLifecycleServiceTest` (service, Mockito).
+- `AuctionLifecycleIntegrationTest.movesEveryAuctionToTheRightStateInOneRun` (real PostgreSQL, seven auctions in different states).
+
+**Run:** `cd backend; .\mvnw.cmd test` (this restarts the running backend; start it again afterwards).
+
+### Acceptance criteria
+
+- `start(now)`: only a `SCHEDULED` auction can start (`AUCTION_NOT_SCHEDULED`), and only once its start time has arrived (`START_TIME_NOT_REACHED`). Start time equal to `now` counts as arrived.
+- `complete(now)`: only an `ACTIVE` auction can complete (`AUCTION_NOT_ACTIVE`), and only once its end time has arrived (`END_TIME_NOT_REACHED`). End time equal to `now` counts as arrived, which matches R4: a bid at exactly the end time is already rejected.
+- Completing keeps `leadingBidder` and `currentPrice` as they are. The leader is the winner (R7). No leader means no winner (R8).
+- `advance()` reads the clock **once**, starts every due `SCHEDULED` auction, then completes every ended `ACTIVE` auction, and returns how many of each.
+- An auction whose whole window passed while it was still `SCHEDULED` ends up `COMPLETED` in a single run, and counts in both numbers.
+- `DRAFT` and `CANCELLED` auctions are never touched.
+- After it's done, within 5 seconds of the backend restarting:
+  - auction 18 ("Shanti Dhara", start time passed, ends 15 Nov) becomes `ACTIVE`;
+  - auctions 10, 11, 12 and 14 (whole window passed while `SCHEDULED`) become `COMPLETED`;
+  - the ended seed auctions and auction 9 become `COMPLETED` with no winner.
+  - Auction 16 stays `ACTIVE` and completes on 15 Nov with Rohan as the winner.
+
+### Learn first
+
+- **`@Scheduled` and `@EnableScheduling`:** `fixedDelay` vs `fixedRate` vs `cron`. Which thread runs the job, and what happens if one run takes longer than the delay?
+- **Spring Data derived queries:** how `findByStatusAndStartTimeLessThanEqual` turns into `WHERE status = ? AND start_time <= ?`. Why is it a list, not an `Optional`?
+- **Dirty checking inside a transaction:** why `advance()` needs no `save` call for entities it loaded.
+- **Hibernate auto-flush:** before running the second query, Hibernate writes pending changes so the query sees them. Why does that matter for an auction that starts and completes in the same run?
+- **Testing time-based code:** why the job is off in tests, and why the service takes a `Clock` instead of calling `Instant.now()`.
+
+### Questions to answer in your PR description
+
+1. `advance()` runs in one transaction. If `complete` throws for one auction out of 50, what happens to the other 49? Would one transaction per auction be better? What does it cost?
+2. A bid commits at the same moment the job completes that auction. Which one wins, and what does each side see? (Think about `@Version` from Challenge 8.)
+3. The job only runs every 5 seconds. Can someone place a bid 3 seconds after the end time, while the auction is still `ACTIVE` in the database? Why not?
+4. If we ran two copies of the backend, both would run the job. What could go wrong, and how could you stop it?
+5. A single SQL `UPDATE auctions SET status = 'COMPLETED' WHERE status = 'ACTIVE' AND end_time <= now()` would be faster than loading entities. What would you lose by using it?
+
+Hint 1
+
+The two entity methods look like `publish()`: guard clauses that throw `BusinessRuleException`, then one assignment. `complete` doesn't touch the leader at all.
+
+Hint 2
+
+For "has the time arrived", `startTime.isAfter(now)` means *not yet*. For the end, `now.isBefore(endTime)` means *not yet*. Both let equal times through.
+
+Hint 3
+
+In `advance()`, keep the two lists in variables. `forEach(a -> a.start(now))` changes each auction, and `list.size()` gives you the count.

@@ -116,7 +116,7 @@ export function AuctionDetailsPage() {
                     <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <Box>
                         <Typography variant="body2" color="text.secondary">
-                          Current bid
+                          {auction.status === 'COMPLETED' ? 'Final price' : 'Current bid'}
                         </Typography>
                         <Typography variant="h3" component="p" sx={{ fontVariantNumeric: 'tabular-nums' }}>
                           {formatPrice(auction.currentPrice)}

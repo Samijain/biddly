@@ -37,6 +37,10 @@ management:
 biddly:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5180}
+  scheduler:
+    # Starts and closes auctions on time (AuctionLifecycleJob).
+    enabled: ${SCHEDULER_ENABLED:true}
+    interval-ms: ${SCHEDULER_INTERVAL_MS:5000}
 
 ---
 spring:
@@ -51,3 +55,14 @@ spring:
 logging:
   level:
     com.biddly: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+
+# Tests set auction states themselves and call AuctionLifecycleService directly; a background job would race them.
+biddly:
+  scheduler:
+    enabled: false

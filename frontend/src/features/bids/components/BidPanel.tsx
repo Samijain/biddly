@@ -9,7 +9,7 @@ import Typography from '@mui/material/Typography'
 import { type FormEvent, useState } from 'react'
 
 import { ApiError } from '../../../lib/http'
-import { formatPrice } from '../../../lib/format'
+import { formatDateTime, formatPrice } from '../../../lib/format'
 import type { Auction } from '../../auctions/types'
 import { DEMO_BIDDERS } from '../api'
 import { usePlaceBid } from '../hooks'
@@ -84,14 +84,29 @@ export function BidPanel({ auction }: { auction: Auction }) {
       </Button>
 
       {!live && (
-        <Alert severity="info" variant="outlined">
-          Bids can only be placed while the auction is live.
+        <Alert severity={auction.status === 'COMPLETED' ? 'success' : 'info'} variant="outlined">
+          {notLiveMessage(auction)}
         </Alert>
       )}
       {placeBid.error && <BidError error={placeBid.error} />}
       {placed !== null && !placeBid.error && <Alert severity="success">Your bid of {formatPrice(placed)} is in.</Alert>}
     </Stack>
   )
+}
+
+function notLiveMessage(auction: Auction): string {
+  switch (auction.status) {
+    case 'COMPLETED':
+      return auction.leadingBidder
+        ? `Sold to ${auction.leadingBidder.displayName} for ${formatPrice(auction.currentPrice)}.`
+        : 'This auction closed without any bids.'
+    case 'SCHEDULED':
+      return `Bidding opens ${formatDateTime(auction.startTime)}.`
+    case 'CANCELLED':
+      return 'This auction was cancelled by the seller.'
+    default:
+      return 'Bids can only be placed while the auction is live.'
+  }
 }
 
 function BidError({ error }: { error: Error }) {

@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -258,6 +259,115 @@ class AuctionTest {
                     .extracting("code").isEqualTo("SELF_BIDDING_NOT_ALLOWED");
             assertThat(auction.getLeadingBidder()).isNull();
         }
+    }
+
+    @Nested
+    class Start {
+
+        @Test
+        void startsAScheduledAuctionWhenItsStartTimeArrives() {
+            var auction = owned(NOW, NOW.plus(1, ChronoUnit.DAYS), AuctionStatus.SCHEDULED);
+
+            auction.start(NOW);
+
+            assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ACTIVE);
+        }
+
+        @Test
+        void rejectsStartingBeforeTheStartTime() {
+            var auction = owned(NOW.plus(1, ChronoUnit.MINUTES), NOW.plus(1, ChronoUnit.DAYS), AuctionStatus.SCHEDULED);
+
+            assertThatThrownBy(() -> auction.start(NOW))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("START_TIME_NOT_REACHED");
+            assertThat(auction.getStatus()).isEqualTo(AuctionStatus.SCHEDULED);
+        }
+
+        @ParameterizedTest
+        @EnumSource(value = AuctionStatus.class, names = {"DRAFT", "ACTIVE", "COMPLETED", "CANCELLED"})
+        void startsOnlyScheduledAuctions(AuctionStatus status) {
+            var auction = owned(NOW.minus(1, ChronoUnit.HOURS), NOW.plus(1, ChronoUnit.DAYS), status);
+
+            assertThatThrownBy(() -> auction.start(NOW))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("AUCTION_NOT_SCHEDULED");
+            assertThat(auction.getStatus()).isEqualTo(status);
+        }
+    }
+
+    @Nested
+    class Complete {
+
+        @Test
+        void completesAnActiveAuctionExactlyAtItsEndTime() {
+            var auction = owned(NOW.minus(1, ChronoUnit.DAYS), NOW, AuctionStatus.ACTIVE);
+
+            auction.complete(NOW);
+
+            assertThat(auction.getStatus()).isEqualTo(AuctionStatus.COMPLETED);
+        }
+
+        @Test
+        void keepsTheLeadingBidderAsTheWinner() {
+            var auction = owned(NOW.minus(1, ChronoUnit.DAYS), NOW.plus(1, ChronoUnit.MINUTES), AuctionStatus.ACTIVE);
+            var rohan = user(2L, "Rohan Bidder");
+            auction.acceptBid(rohan, new BigDecimal("1200.00"), NOW);
+
+            auction.complete(NOW.plus(1, ChronoUnit.MINUTES));
+
+            assertThat(auction.getStatus()).isEqualTo(AuctionStatus.COMPLETED);
+            assertThat(auction.getLeadingBidder()).isSameAs(rohan);
+            assertThat(auction.getCurrentPrice()).isEqualByComparingTo("1200.00");
+        }
+
+        @Test
+        void closesWithoutAWinnerWhenNobodyBid() {
+            var auction = owned(NOW.minus(1, ChronoUnit.DAYS), NOW, AuctionStatus.ACTIVE);
+
+            auction.complete(NOW);
+
+            assertThat(auction.getStatus()).isEqualTo(AuctionStatus.COMPLETED);
+            assertThat(auction.getLeadingBidder()).isNull();
+        }
+
+        @Test
+        void rejectsCompletingBeforeTheEndTime() {
+            var auction = owned(NOW.minus(1, ChronoUnit.DAYS), NOW.plus(1, ChronoUnit.SECONDS), AuctionStatus.ACTIVE);
+
+            assertThatThrownBy(() -> auction.complete(NOW))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("END_TIME_NOT_REACHED");
+            assertThat(auction.getStatus()).isEqualTo(AuctionStatus.ACTIVE);
+        }
+
+        @ParameterizedTest
+        @EnumSource(value = AuctionStatus.class, names = {"DRAFT", "SCHEDULED", "COMPLETED", "CANCELLED"})
+        void completesOnlyActiveAuctions(AuctionStatus status) {
+            var auction = owned(NOW.minus(1, ChronoUnit.DAYS), NOW, status);
+
+            assertThatThrownBy(() -> auction.complete(NOW))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("AUCTION_NOT_ACTIVE");
+            assertThat(auction.getStatus()).isEqualTo(status);
+        }
+
+        @Test
+        void acceptsNoBidsOnceCompleted() {
+            var auction = owned(NOW.minus(1, ChronoUnit.DAYS), NOW, AuctionStatus.ACTIVE);
+            auction.complete(NOW);
+
+            assertThatThrownBy(() -> auction.acceptBid(user(2L, "Rohan Bidder"), new BigDecimal("5000.00"), NOW))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("AUCTION_NOT_ACTIVE");
+        }
+    }
+
+    /** An auction sold by Asha (id 1), so bids from other users are allowed. Price 1000.00, increment 50.00. */
+    private static Auction owned(Instant start, Instant end, AuctionStatus status) {
+        var auction = new Auction(user(1L, "Asha Seller"), null, "Vintage clock", "Brass, 1920s", null,
+                new BigDecimal("1000.00"), new BigDecimal("50.00"), start, end);
+        withStatus(auction, status);
+        return auction;
     }
 
     private static User user(Long id, String name) {

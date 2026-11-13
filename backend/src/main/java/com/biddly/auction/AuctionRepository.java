@@ -1,5 +1,7 @@
 package com.biddly.auction;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.LockModeType;
@@ -22,6 +24,12 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
 
     @EntityGraph(attributePaths = {"seller", "category", "leadingBidder"})
     Optional<Auction> findWithDetailsById(Long id);
+
+    /** Auctions in {@code status} whose start time has arrived, for the lifecycle job. */
+    List<Auction> findByStatusAndStartTimeLessThanEqual(AuctionStatus status, Instant now);
+
+    /** Auctions in {@code status} whose end time has arrived, for the lifecycle job. */
+    List<Auction> findByStatusAndEndTimeLessThanEqual(AuctionStatus status, Instant now);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM Auction a WHERE a.id = :id")
