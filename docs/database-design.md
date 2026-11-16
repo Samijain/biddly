@@ -75,7 +75,7 @@ erDiagram
 |---|---|---|
 | `roles`, `user_roles` | M5 | BIDDER, SELLER, ADMIN |
 | `refresh_tokens` | M5 | Store a hash, never the raw token |
-| `idempotency_keys` | M6 | Or Redis with a TTL |
+| `idempotency_keys` | Later | Not needed yet: Challenge 10 stores the key on `bids.idempotency_key` (V3), unique per bidder. A separate table or Redis with a TTL becomes worth it if keys must expire or cover other endpoints |
 | `watchlist` | M7 | Composite PK `(user_id, auction_id)` |
 | `notifications` | M7 | `read_at` nullable |
 | `audit_events` | M8 | `metadata JSONB` |

@@ -6,6 +6,28 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 
 ## [Unreleased]
 
+### Added - Challenge 10: idempotent bids (2026-11-13)
+
+- `BidService.placeBid`: after locking the auction, a request with a key looks up this bidder's earlier bid with that key.
+  - **Same auction and amount:** returns that bid with 201 and stores nothing.
+  - **Anything else:** 422 `IDEMPOTENCY_KEY_REUSED`.
+  - **New key:** stored with the new bid.
+  - **No key:** no lookup.
+- All Challenge 10 tests enabled: 93/93 backend tests, including six simultaneous copies of one request giving one bid.
+- Rule R23 and the US-20 idempotency criterion marked as done; Milestone 6 (bidding engine) complete.
+
+### Added - Challenge 10 starter: idempotent bids (2026-11-13)
+
+- Migration `V3__add_bid_idempotency_key.sql`: `bids.idempotency_key` (UUID) with a partial unique index on `(bidder_id, idempotency_key)`.
+- `Bid` stores the key; `BidRepository.findByBidderIdAndIdempotencyKey`.
+- `POST /api/v1/auctions/{id}/bids` reads an optional `Idempotency-Key` header. `BidService.placeBid` takes it as a third parameter; the behaviour is the challenge.
+- `GlobalExceptionHandler`: a path variable, query parameter or header that can't be converted (for example, a malformed key) is now **400 `INVALID_PARAMETER`** instead of a 500.
+- Tests:
+  - Disabled: `BidServiceTest.Idempotency` (4) and `BidIdempotencyIntegrationTest` (3, including six simultaneous copies of one request).
+  - Enabled: 4 guard tests that must keep passing.
+- Frontend: every bid attempt sends a UUID key, and pressing **Place bid** again with the same bidder and amount reuses it (`nextAttempt`, with 3 tests).
+- Rule R23 and the Challenge 10 brief.
+
 ### Added - Challenge 9: auction scheduler (2026-11-13)
 
 - `Auction.start` and `Auction.complete` with guard clauses (`AUCTION_NOT_SCHEDULED`, `START_TIME_NOT_REACHED`, `AUCTION_NOT_ACTIVE`, `END_TIME_NOT_REACHED`). Completing keeps the leading bidder as the winner, or none if nobody bid.

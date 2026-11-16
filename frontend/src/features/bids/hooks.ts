@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { auctionKeys } from '../auctions/hooks'
 import { fetchBids, placeBid } from './api'
-import type { PlaceBidInput } from './types'
+import type { BidAttempt } from './bidAttempt'
 
 export const bidKeys = {
   list: (auctionId: number) => [...auctionKeys.detail(auctionId), 'bids'] as const,
@@ -25,7 +25,7 @@ export function useBids(auctionId: number) {
 export function usePlaceBid(auctionId: number) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: PlaceBidInput) => placeBid(auctionId, input),
+    mutationFn: ({ bidderId, amount, idempotencyKey }: BidAttempt) => placeBid(auctionId, { bidderId, amount }, idempotencyKey),
     onSettled: () => queryClient.invalidateQueries({ queryKey: auctionKeys.all }),
   })
 }

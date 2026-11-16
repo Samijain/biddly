@@ -6,12 +6,13 @@ import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useRef, useState } from 'react'
 
 import { ApiError } from '../../../lib/http'
 import { formatDateTime, formatPrice } from '../../../lib/format'
 import type { Auction } from '../../auctions/types'
 import { DEMO_BIDDERS } from '../api'
+import { type BidAttempt, nextAttempt } from '../bidAttempt'
 import { usePlaceBid } from '../hooks'
 import { minimumNextBid } from '../minimumNextBid'
 
@@ -20,6 +21,7 @@ export function BidPanel({ auction }: { auction: Auction }) {
   const [bidderId, setBidderId] = useState<number>(DEMO_BIDDERS[0].id)
   const [amount, setAmount] = useState('')
   const [placed, setPlaced] = useState<number | null>(null)
+  const attempt = useRef<BidAttempt | null>(null)
 
   const minimum = minimumNextBid(auction)
   const live = auction.status === 'ACTIVE'
@@ -28,15 +30,14 @@ export function BidPanel({ auction }: { auction: Auction }) {
     event.preventDefault()
     setPlaced(null)
     const value = Number(amount)
-    placeBid.mutate(
-      { bidderId, amount: value },
-      {
-        onSuccess: () => {
-          setPlaced(value)
-          setAmount('')
-        },
+    attempt.current = nextAttempt(attempt.current, bidderId, value)
+    placeBid.mutate(attempt.current, {
+      onSuccess: () => {
+        attempt.current = null
+        setPlaced(value)
+        setAmount('')
       },
-    )
+    })
   }
 
   return (

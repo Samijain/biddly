@@ -42,6 +42,7 @@ stateDiagram-v2
 | R20 | A rejected bid is never stored; an accepted bid, the new price and the new leader are saved in one transaction | `BidService.placeBid` (`@Transactional`) (Challenge 7) | ✅ |
 | R21 | When bids race, exactly one wins. The others get a clear answer (`409 CONCURRENT_UPDATE` or `422 BID_TOO_LOW`), never a `500` | `@Version` on `Auction`, `GlobalExceptionHandler`, `SELECT ... FOR UPDATE` in `placeBid` (Challenge 8) | ✅ |
 | R22 | Auctions move on time without anyone clicking: `SCHEDULED` → `ACTIVE` once `startTime` arrives, `ACTIVE` → `COMPLETED` once `endTime` arrives. Only these two moves happen automatically; `DRAFT` and `CANCELLED` are never touched | `Auction.start`, `Auction.complete`, `AuctionLifecycleService.advance`, run every 5 s by `AuctionLifecycleJob` (Challenge 9) | ✅ |
+| R23 | A repeated bid request (same bidder, same `Idempotency-Key`) never places a second bid. The same auction and amount get the original bid back; anything else gets `422 IDEMPOTENCY_KEY_REUSED` | `BidService.placeBid`, unique index on `bids (bidder_id, idempotency_key)` (Challenge 10) | ✅ |
 
 ## Concurrency: the most important scenario
 

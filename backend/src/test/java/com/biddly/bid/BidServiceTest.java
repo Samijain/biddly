@@ -15,8 +15,10 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -88,7 +90,7 @@ class BidServiceTest {
             when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(auction));
             when(userRepository.findById(2L)).thenReturn(Optional.of(rohan));
 
-            var response = service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00")));
+            var response = service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00")), null);
 
             var saved = ArgumentCaptor.forClass(Bid.class);
             verify(bidRepository).save(saved.capture());
@@ -107,7 +109,7 @@ class BidServiceTest {
         void rejectsABidOnAnUnknownAuction() {
             when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00"))))
+            assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00")), null))
                     .isInstanceOf(ResourceNotFoundException.class)
                     .hasMessageContaining("Auction 5");
             verify(bidRepository, never()).save(any());
@@ -118,7 +120,7 @@ class BidServiceTest {
             when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(liveAuction(NOW.plus(1, ChronoUnit.HOURS))));
             when(userRepository.findById(2L)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00"))))
+            assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00")), null))
                     .isInstanceOf(ResourceNotFoundException.class)
                     .hasMessageContaining("User 2");
             verify(bidRepository, never()).save(any());
@@ -129,7 +131,7 @@ class BidServiceTest {
             when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(liveAuction(NOW.plus(1, ChronoUnit.HOURS))));
             when(userRepository.findById(2L)).thenReturn(Optional.of(rohan));
 
-            assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("10.00"))))
+            assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("10.00")), null))
                     .isInstanceOf(BusinessRuleException.class)
                     .extracting("code").isEqualTo("BID_TOO_LOW");
             verify(bidRepository, never()).save(any());
@@ -140,10 +142,93 @@ class BidServiceTest {
             when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(liveAuction(NOW)));
             when(userRepository.findById(2L)).thenReturn(Optional.of(rohan));
 
-            assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00"))))
+            assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00")), null))
                     .isInstanceOf(BusinessRuleException.class)
                     .extracting("code").isEqualTo("AUCTION_CLOSED");
             verify(bidRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    class Idempotency {
+
+        private final UUID key = UUID.fromString("7f1c2c9e-4a4b-4f43-9a52-3d0d6a1b2c3d");
+
+        /** Passes already, and must keep passing: no key means no lookup, so keyless bids never match each other. */
+        @Test
+        void looksNothingUpWithoutAKey() {
+            when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(liveAuction(NOW.plus(1, ChronoUnit.HOURS))));
+            when(userRepository.findById(2L)).thenReturn(Optional.of(rohan));
+
+            service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00")), null);
+
+            verify(bidRepository, never()).findByBidderIdAndIdempotencyKey(any(), any());
+            verify(bidRepository).save(any(Bid.class));
+        }
+
+        @Test
+        void storesTheKeyWithANewBid() {
+            when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(liveAuction(NOW.plus(1, ChronoUnit.HOURS))));
+            when(userRepository.findById(2L)).thenReturn(Optional.of(rohan));
+
+            service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00")), key);
+
+            var saved = ArgumentCaptor.forClass(Bid.class);
+            verify(bidRepository).save(saved.capture());
+            assertThat(saved.getValue().getIdempotencyKey()).isEqualTo(key);
+        }
+
+        @Test
+        void answersARepeatedRequestWithTheOriginalBid() {
+            var auction = liveAuction(NOW.plus(1, ChronoUnit.HOURS));
+            ReflectionTestUtils.setField(auction, "id", 5L);
+            auction.acceptBid(rohan, new BigDecimal("1000.00"), NOW.minus(1, ChronoUnit.MINUTES));
+            var original = new Bid(auction, rohan, new BigDecimal("1000.00"), NOW.minus(1, ChronoUnit.MINUTES), key);
+            ReflectionTestUtils.setField(original, "id", 42L);
+            when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(auction));
+            when(userRepository.findById(2L)).thenReturn(Optional.of(rohan));
+            when(bidRepository.findByBidderIdAndIdempotencyKey(2L, key)).thenReturn(Optional.of(original));
+
+            // "1000" and "1000.00" are the same amount.
+            var response = service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000")), key);
+
+            assertThat(response.id()).isEqualTo(42L);
+            assertThat(response.placedAt()).isEqualTo(NOW.minus(1, ChronoUnit.MINUTES));
+            verify(bidRepository, never()).save(any());
+            assertThat(auction.getCurrentPrice()).isEqualByComparingTo("1000.00");
+        }
+
+        @Test
+        void rejectsTheSameKeyForADifferentAmount() {
+            var auction = liveAuction(NOW.plus(1, ChronoUnit.HOURS));
+            ReflectionTestUtils.setField(auction, "id", 5L);
+            var original = new Bid(auction, rohan, new BigDecimal("1000.00"), NOW.minus(1, ChronoUnit.MINUTES), key);
+            when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(auction));
+            when(userRepository.findById(2L)).thenReturn(Optional.of(rohan));
+            when(bidRepository.findByBidderIdAndIdempotencyKey(2L, key)).thenReturn(Optional.of(original));
+
+            assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1100.00")), key))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("IDEMPOTENCY_KEY_REUSED");
+            verify(bidRepository, never()).save(any());
+        }
+
+        @Test
+        void rejectsTheSameKeyOnADifferentAuction() {
+            var otherAuction = liveAuction(NOW.plus(1, ChronoUnit.HOURS));
+            ReflectionTestUtils.setField(otherAuction, "id", 6L);
+            var original = new Bid(otherAuction, rohan, new BigDecimal("1000.00"), NOW.minus(1, ChronoUnit.MINUTES), key);
+            var auction = liveAuction(NOW.plus(1, ChronoUnit.HOURS));
+            ReflectionTestUtils.setField(auction, "id", 5L);
+            when(auctionRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(auction));
+            when(userRepository.findById(2L)).thenReturn(Optional.of(rohan));
+            when(bidRepository.findByBidderIdAndIdempotencyKey(2L, key)).thenReturn(Optional.of(original));
+
+            assertThatThrownBy(() -> service.placeBid(5L, new PlaceBidRequest(2L, new BigDecimal("1000.00")), key))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("IDEMPOTENCY_KEY_REUSED");
+            verify(bidRepository, never()).save(any());
+            assertThat(auction.getLeadingBidder()).isNull();
         }
     }
 

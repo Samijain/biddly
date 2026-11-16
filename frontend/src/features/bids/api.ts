@@ -18,7 +18,11 @@ export async function fetchBids(auctionId: number): Promise<Bid[]> {
   return http<Bid[]>(`/api/v1/auctions/${auctionId}/bids`)
 }
 
-export async function placeBid(auctionId: number, input: PlaceBidInput): Promise<Bid> {
+export async function placeBid(auctionId: number, input: PlaceBidInput, idempotencyKey: string): Promise<Bid> {
   if (useMocks) throw new Error('Bidding needs the real backend. Run `npm run dev` instead of `npm run dev:mock`.')
-  return http<Bid>(`/api/v1/auctions/${auctionId}/bids`, { method: 'POST', body: JSON.stringify(input) })
+  return http<Bid>(`/api/v1/auctions/${auctionId}/bids`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+    headers: { 'Idempotency-Key': idempotencyKey },
+  })
 }

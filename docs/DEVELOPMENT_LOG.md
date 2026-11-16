@@ -736,3 +736,88 @@ You published auction 17 to start one minute later, and it stayed `SCHEDULED`. N
 
 Challenge 9 complete. Milestone 6 still needs idempotency keys. Milestone 7 still needs live updates (WebSocket) and notifications; the scheduler is ready to trigger the "You won" notification.
 
+---
+
+## Session 21 - 2026-11-13 - Challenge 10 starter: idempotent bids
+
+### Why this challenge
+
+The last missing piece of Milestone 6. A bid whose answer is lost (timeout, flaky network) gets retried, and today the retry is judged as a new bid. The bidder sees `BID_TOO_LOW` for a bid that actually won, or places a second bid by accident. You picked this over sign-in and the API docs.
+
+### What the tutor prepared
+
+| Layer | Added |
+|---|---|
+| Database | `V3`: `bids.idempotency_key UUID`, partial unique index on `(bidder_id, idempotency_key)` |
+| Entity / repository | `Bid` constructor with the key; `findByBidderIdAndIdempotencyKey` |
+| API | Optional `Idempotency-Key` header on `POST .../bids`; `placeBid` gets a third parameter. A malformed key is 400 `INVALID_PARAMETER` (this also fixes non-numeric path ids, which were 500s) |
+| Tests (disabled) | `BidServiceTest.Idempotency` (4), `BidIdempotencyIntegrationTest` (3, including six copies of one request at once) |
+| Tests (enabled guards) | no key means no lookup; keyless bids stay separate; different keys are different bids; two bidders may share a key |
+| Frontend | `nextAttempt`: a UUID per attempt, reused when the same bidder and amount are sent again, reset after a success. 3 tests |
+| Docs | Challenge 10 brief, questions and hints; rule R23 |
+
+### Design decisions
+
+- **The key lives on the bid row, not in its own table.** Only accepted bids are stored (R20), and only an accepted bid needs replaying. A rejected request leaves nothing behind, so its retry is judged again (review question 2). A separate table, or Redis with a TTL, can come later if keys must expire or cover other endpoints.
+- **Unique per bidder.** A key only means something to the client that made it. Scoping it to the bidder means one user can't block or probe another's key (question 3).
+- **Replay the original answer.** A repeat gets the same 201 and the same bid, like Stripe. The client can't tell a replay from the first answer, which is the point.
+- **Header optional for now.** curl and the existing tests still work. Whether to require it is question 5.
+- **A race test decides where the lookup goes.** The slow clock makes six copies arrive together, so a lookup in the wrong place fails every time instead of now and then.
+
+### Verified
+
+- With the starter: 93 backend tests run, 7 skipped, 0 failures. Frontend type check and lint clean, 15/15 tests.
+- **A temporary wrong solution** (lookup before the lock) passed every test except the race test, which got 422 `BID_TOO_LOW` for the copies. So the test catches exactly that mistake.
+- **A temporary correct solution:** 93/93. The original code was then restored.
+
+---
+
+## Session 22 - 2026-11-13 - Challenge 10: idempotent bids completed
+
+### How the code evolved
+
+1. **`Optional`:** the first draft assigned the repository's `Optional<Bid>` to a `Bid`. It became `isPresent()` and `get()`.
+2. **First run, 8 failures:**
+   - a lookup even with a `null` key;
+   - the key never stored (4-argument constructor);
+   - `equals` on `BigDecimal` (`1000` ≠ `1000.00`);
+   - an always-true key comparison instead of an auction check;
+   - a found-but-different bid falling through.
+3. **Second run, 5 failures.** The race test already passed, which confirmed the lookup was placed after the lock. The fall-through now hit the unique index, which turned it into a **500**: the safety net working, but with the wrong answer for the bidder.
+4. **Third draft:**
+   - a missing semicolon;
+   - `Long == Long` for the auction ids, the same bug as Challenge 7. It would have passed the tests (small ids are cached) and failed in production above id 127.
+5. **Final:** after the lock, if there is a key, find the earlier bid. Same auction (`compareTo`) and amount (`compareTo`): replay it. Otherwise: `IDEMPOTENCY_KEY_REUSED`. The key is passed to the new `Bid`.
+
+### Verified
+
+93/93 backend tests, all Challenge 10 tests enabled.
+
+### Review answers
+
+1. **Lookup after the lock:**
+   - *You said* the lock stops others updating, and the locked auction is used for the id check. Partly right. Bids are inserted, not updated, and the id check uses the parameter.
+   - **The real reason:** waiting for the lock means waiting for the previous copy to commit, so its bid is *visible*.
+   - **Lookup before the lock:** all six copies find nothing. One wins and five get `BID_TOO_LOW`, and the bidder may see "too low" for a winning bid.
+2. **Retrying a rejection:** *you said* the rejection was never stored, so the retry is judged again and succeeds once the auction starts. Correct. A too-low bid stays too low because prices only rise. Succeeding after the start is fine because our retries are deliberate clicks. Some APIs also store error answers, which matters for automatic retries much later.
+3. **Keys per bidder:** *you said* for history, and that a global key would let users track each other. The second part is the right instinct. A global key would let:
+   - one user's request be answered with *another* user's bid (a data leak, and a false "your bid is in");
+   - one user block another's key.
+   Keys are always scoped to the caller.
+4. **The unique index:** *you were unsure*, and suggested other code paths. That idea is valid.
+   - **The key example:** the same key sent for two *different* auctions at once. Different row locks, so both look, find nothing and insert. The second insert breaks the index.
+   - **Today:** a 500, via `DataIntegrityViolationException` and the catch-all handler.
+   - **Should be:** 422 `IDEMPOTENCY_KEY_REUSED`, from a handler for that constraint.
+5. **Where to keep keys:** not attempted. The concept is an idempotency key store (with at-least-once delivery and the dual-write problem), not rate limiting.
+   - **On the bid row (ours):** atomic with the bid and no extra system, but never expires and covers one endpoint only.
+   - **A separate table with expiry:** works for any endpoint and can store full responses; needs a cleanup job.
+   - **Redis with a TTL:** fast and self-expiring, but outside the database transaction, so a crash between the two writes breaks it.
+   - **Required header:** once there's a public API or a mobile app. Optional is fine while our own frontend always sends a key.
+
+### Possible follow-ups
+
+- Map the `uq_bids_bidder_idempotency_key` violation to 422 instead of 500 (question 4).
+- Move the key lookup above the bidder load and the clock read, so a replay does less work.
+
+Challenge 10 complete, and with it Milestone 6, the bidding engine. The bidder is still chosen from a demo picker until sign-in (Milestone 5).
+

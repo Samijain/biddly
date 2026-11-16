@@ -14,6 +14,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -54,6 +55,13 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiError> handleUnreadable(HttpMessageNotReadableException ex) {
         return respond(HttpStatus.BAD_REQUEST,
                 ApiError.of("MALFORMED_REQUEST", "The request body could not be read.", now()));
+    }
+
+    /** A path variable, query parameter or header that can't be converted, such as a malformed Idempotency-Key. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ApiError> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return respond(HttpStatus.BAD_REQUEST,
+                ApiError.of("INVALID_PARAMETER", "The value of '" + ex.getName() + "' is not valid.", now()));
     }
 
     /** Lets the UI show "coming soon" for endpoints whose challenge has not been solved yet. */

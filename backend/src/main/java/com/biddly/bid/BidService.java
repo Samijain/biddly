@@ -3,8 +3,11 @@ package com.biddly.bid;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import com.biddly.auction.Auction;
+import com.biddly.common.BusinessRuleException;
 import com.biddly.user.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,14 +50,32 @@ public class BidService {
     /**
      * Places a bid (US-20). The auction applies R3-R5; "now" comes from the server clock (R4).
      * A rejected bid throws before anything is saved.
+     *
+     * CHALLENGE 10 - see docs/CHALLENGES.md. Make a repeated request harmless (R23):
+     *   - idempotencyKey is null                      -> behave exactly as today; don't look anything up
+     *   - this bidder already placed a bid with this key:
+     *       - same auction and same amount            -> return that bid, unchanged; place nothing new
+     *       - different auction or amount             -> BusinessRuleException("IDEMPOTENCY_KEY_REUSED", ...)
+     *   - otherwise                                   -> place the bid as today, and store the key with it
+     * Where you put the lookup matters. BidIdempotencyIntegrationTest's race test will tell you if it's in the wrong place.
      */
     @Transactional
-    public BidResponse placeBid(Long auctionId, PlaceBidRequest request) {
+    public BidResponse placeBid(Long auctionId, PlaceBidRequest request, UUID idempotencyKey) {
       Auction auction = auctionRepository.findByIdForUpdate(auctionId).orElseThrow(() -> new ResourceNotFoundException("Auction", auctionId));
+      if(idempotencyKey != null) {
+          Optional<Bid> earlierBid = bidRepository.findByBidderIdAndIdempotencyKey(request.bidderId(), idempotencyKey);
+          if (earlierBid.isPresent()) {
+              Bid bid = earlierBid.get();
+              if (auctionId.compareTo(bid.getAuction().getId()) == 0 && request.amount().compareTo(bid.getAmount()) == 0)
+                  return bidMapper.toResponse(bid);
+              else
+                  throw new BusinessRuleException("IDEMPOTENCY_KEY_REUSED","This request key was already used for a different bid.");
+          }
+      }
       User bidder = userRepository.findById(request.bidderId()).orElseThrow(() -> new ResourceNotFoundException("User", request.bidderId()));
       Instant clockNow = clock.instant();
       auction.acceptBid(bidder,request.amount(),clockNow);
-      Bid bid = bidRepository.save(new Bid( auction, bidder, request.amount(), clockNow));
+      Bid bid = bidRepository.save(new Bid( auction, bidder, request.amount(), clockNow, idempotencyKey));
       return bidMapper.toResponse(bid);
     }
 }

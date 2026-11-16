@@ -2,6 +2,7 @@ package com.biddly.bid;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.UUID;
 
 import com.biddly.auction.Auction;
 import com.biddly.user.User;
@@ -40,14 +41,23 @@ public class Bid {
     @Column(nullable = false, updatable = false)
     private Instant placedAt;
 
+    /** The client's Idempotency-Key for the request that placed this bid, or null if it sent none. */
+    @Column(updatable = false)
+    private UUID idempotencyKey;
+
     protected Bid() {
     }
 
     public Bid(Auction auction, User bidder, BigDecimal amount, Instant placedAt) {
+        this(auction, bidder, amount, placedAt, null);
+    }
+
+    public Bid(Auction auction, User bidder, BigDecimal amount, Instant placedAt, UUID idempotencyKey) {
         this.auction = auction;
         this.bidder = bidder;
         this.amount = amount;
         this.placedAt = placedAt;
+        this.idempotencyKey = idempotencyKey;
     }
 
     public Long getId() {
@@ -68,5 +78,9 @@ public class Bid {
 
     public Instant getPlacedAt() {
         return placedAt;
+    }
+
+    public UUID getIdempotencyKey() {
+        return idempotencyKey;
     }
 }

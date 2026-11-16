@@ -14,6 +14,7 @@ Ask for a hint whenever you are stuck, and ask for a code review when you are fi
 | 7 | Place a bid (`Auction.acceptBid`, `BidService.placeBid`) | Spring Boot / JPA | ✅ Done (2026-11-12): 56/56 backend tests, verified end to end |
 | 8 | Concurrent bids: optimistic vs pessimistic locking | Spring Boot / JPA / PostgreSQL | ✅ Done (2026-11-12): 59/59 backend tests, 8-bidder race tests against PostgreSQL |
 | 9 | Auction scheduler: start and close auctions on time (`Auction.start`, `Auction.complete`, `AuctionLifecycleService.advance`) | Spring Boot / JPA | ✅ Done (2026-11-13): 81/81 backend tests, 11 dev auctions moved in one live run |
+| 10 | Idempotent bids: a retry never places a second bid (`BidService.placeBid`) | Spring Boot / JPA / PostgreSQL | ✅ Done (2026-11-13): 93/93 backend tests, six simultaneous copies give one bid |
 
 ---
 
@@ -483,3 +484,67 @@ For "has the time arrived", `startTime.isAfter(now)` means *not yet*. For the en
 Hint 3
 
 In `advance()`, keep the two lists in variables. `forEach(a -> a.start(now))` changes each auction, and `list.size()` gives you the count.
+
+---
+
+## Challenge 10 - Idempotent bids (Spring Boot / JPA / PostgreSQL)
+
+**Why:** a bidder on flaky mobile data presses **Place bid**. The bid reaches the server and is accepted, but the answer never arrives. The app shows "Cannot reach the server", so they press again. Today the second request is judged as a brand-new bid: they get 422 `BID_TOO_LOW` for a bid that actually won, or, with a higher amount, a second bid they never meant to place. An *idempotency key* lets the server recognise "this is the same request again" and answer with the original result.
+
+**File:** `backend/src/main/java/com/biddly/bid/BidService.java`, method `placeBid`. Its Javadoc lists the rules.
+
+**Ready for you (don't change unless you want to):**
+
+- **Database:** migration `V3__add_bid_idempotency_key.sql` adds `bids.idempotency_key` (UUID) with a unique index per bidder.
+- **`Bid`:** a new constructor takes the key; `getIdempotencyKey()` reads it.
+- **`BidRepository.findByBidderIdAndIdempotencyKey`:** finds the earlier bid for a key.
+- **`BidController`:** reads the optional `Idempotency-Key` header and passes it to `placeBid`. A malformed key gets 400 `INVALID_PARAMETER`.
+- **Frontend:**
+  - every bid attempt sends a fresh UUID;
+  - pressing **Place bid** again for the same bidder and amount reuses the key (`nextAttempt` in `features/bids/bidAttempt.ts`);
+  - a successful bid starts a new attempt.
+
+**Tests:** remove `@Disabled("CHALLENGE 10 ...")` from:
+
+- `BidServiceTest.Idempotency` (4 tests: the key is stored, a repeat gets the original bid, a different amount or auction is refused).
+- `BidIdempotencyIntegrationTest` (3 tests over real HTTP, including six copies of one request arriving together).
+
+Four tests are already enabled and must keep passing: no key means no lookup, keyless bids stay separate, different keys are different bids, and two bidders may use the same key.
+
+**Run:** `cd backend; .\mvnw.cmd test -Dtest="BidServiceTest,BidIdempotencyIntegrationTest"`, then the full suite.
+
+### Acceptance criteria
+
+- No key: `placeBid` behaves exactly as today, and doesn't look anything up.
+- This bidder already placed a bid with this key, on this auction, for the same amount: the answer is **201 with that same bid** (same id, same time). Nothing new is stored, and the auction doesn't change. `1000` and `1000.00` are the same amount.
+- Same key, but a different auction or amount: 422 `IDEMPOTENCY_KEY_REUSED`, and nothing changes.
+- A new key: the bid is judged as today, and the key is stored with it.
+- Six copies of one request arriving at the same moment: all six get 201 with the same bid id, and one bid is stored.
+
+### Learn first
+
+- **Idempotency:** what makes `GET` and `PUT` idempotent and `POST` not? How do Stripe and other payment APIs use an `Idempotency-Key` header?
+- **Retries are the client's normal case:** a timeout doesn't tell you whether the server did the work. Why can't the client just check first?
+- **Read committed in PostgreSQL:** when does one transaction see a row another transaction just inserted? Before or after it commits?
+- **Unique indexes as a safety net:** partial unique indexes (`WHERE ... IS NOT NULL`), and what Spring throws when one is violated (`DataIntegrityViolationException`).
+- **Spring Data derived queries with `null`:** what SQL does `findByBidderIdAndIdempotencyKey(2L, null)` send?
+
+### Questions to answer in your PR description
+
+1. Why does the key lookup have to come after `findByIdForUpdate`? Walk through six copies of one request when it comes before.
+2. A bid is rejected with `BID_TOO_LOW`, and the client retries with the same key. What happens, and is that right? What about a bid rejected with `AUCTION_NOT_ACTIVE` on a scheduled auction that starts a second later?
+3. Why are keys unique per bidder rather than across all bids? Once sign-in exists, what could a global key let one user do to another?
+4. With the lock in place, can the unique index still be violated? When? What does the bidder see today, and what should they see?
+5. The key is stored forever on the bid row. Payment APIs usually keep keys for about 24 hours in a separate table or in Redis. What are the trade-offs? Should the header become required?
+
+Hint 1
+
+The whole change is about five lines inside `placeBid`, plus passing the key to the new `Bid` constructor. A replay is just `return bidMapper.toResponse(earlierBid);`.
+
+Hint 2
+
+Compare amounts with `compareTo`, not `equals`: `new BigDecimal("1000").equals(new BigDecimal("1000.00"))` is `false`. For the auction, `earlierBid.getAuction().getId()` gives the id without loading the auction.
+
+Hint 3
+
+If the race test gets 422 `BID_TOO_LOW` for five of the six copies, ask yourself when each copy can first *see* the bid the first copy stored, and what each copy is waiting for before that.
