@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
@@ -72,6 +73,21 @@ class AuctionApiIntegrationTest {
                 .hasStatusOk()
                 .bodyJson()
                 .extractingPath("$.currentPrice").isEqualTo(100.0);
+    }
+
+    /** R25: whole rupees only, for the starting price and the increment. */
+    @Test
+    void rejectsPricesWithPaise() {
+        var start = Instant.now().plus(1, ChronoUnit.HOURS);
+        var body = """
+                {"sellerId": %d, "title": "Brass lamp", "startingPrice": 100.50, "minimumIncrement": 10.25,
+                 "startTime": "%s", "endTime": "%s"}""".formatted(draft.getSeller().getId(), start, start.plus(1, ChronoUnit.DAYS));
+
+        var result = mvc.post().uri("/api/v1/auctions").contentType(MediaType.APPLICATION_JSON).content(body).exchange();
+
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(result).bodyJson().extractingPath("$.fieldErrors.startingPrice").isEqualTo("must be in whole rupees");
+        assertThat(result).bodyJson().extractingPath("$.fieldErrors.minimumIncrement").isEqualTo("must be in whole rupees");
     }
 
     @Test

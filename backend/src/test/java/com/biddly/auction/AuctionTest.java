@@ -226,6 +226,22 @@ class AuctionTest {
             assertThat(auction.getCurrentPrice()).isEqualByComparingTo("1800.00");
         }
 
+        /** Decided 2026-11-16: the leader may raise their own bid, with the usual increment (R26). */
+        @Test
+        void letsTheLeaderRaiseTheirOwnBid() {
+            var auction = liveAuction();
+            auction.acceptBid(rohan, new BigDecimal("1000.00"), NOW);
+
+            assertThatThrownBy(() -> auction.acceptBid(rohan, new BigDecimal("1049.99"), NOW))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("BID_TOO_LOW");
+
+            auction.acceptBid(rohan, new BigDecimal("1050.00"), NOW);
+
+            assertThat(auction.getCurrentPrice()).isEqualByComparingTo("1050.00");
+            assertThat(auction.getLeadingBidder()).isSameAs(rohan);
+        }
+
         @ParameterizedTest
         @EnumSource(value = AuctionStatus.class, names = {"DRAFT", "SCHEDULED", "COMPLETED", "CANCELLED"})
         void rejectsBidsWhenTheAuctionIsNotActive(AuctionStatus status) {

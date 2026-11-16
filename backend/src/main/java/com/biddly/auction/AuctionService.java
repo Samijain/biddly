@@ -1,6 +1,7 @@
 package com.biddly.auction;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -21,6 +22,10 @@ import com.biddly.common.BusinessRuleException;
 @Service
 @Transactional(readOnly = true)
 public class AuctionService {
+
+    /** R24. "4 months" is a fixed 120 days, because calendar months differ in length. */
+    static final Duration MIN_LENGTH = Duration.ofMinutes(10);
+    static final Duration MAX_LENGTH = Duration.ofDays(120);
 
     private final AuctionRepository auctionRepository;
     private final UserRepository userRepository;
@@ -51,9 +56,10 @@ public class AuctionService {
     }
 
     /**
-     * Creates a draft auction (rules R13, R14):
+     * Creates a draft auction (rules R13, R14, R24):
      *   1. startTime must not be in the past              -> BusinessRuleException("START_TIME_IN_PAST", ...)
      *   2. endTime must be after startTime                -> BusinessRuleException("INVALID_TIME_WINDOW", ...)
+     *      and the auction must last 10 minutes to 120 days -> AUCTION_TOO_SHORT, AUCTION_TOO_LONG
      *   3. the seller must exist                          -> ResourceNotFoundException("User", sellerId)
      *   4. if categoryId is given, the category must exist -> ResourceNotFoundException("Category", categoryId)
      *   5. save a new DRAFT auction and return it as an AuctionResponse
@@ -100,7 +106,8 @@ public class AuctionService {
     /**
      * Replaces the details of a draft (rules R14, R18; the status rule lives on {@link Auction#updateDetails}).
      *   1. load it with auctionRepository.findById(id); unknown id -> ResourceNotFoundException("Auction", id)
-     *   2. the same time-window rules as createAuction (R14): START_TIME_IN_PAST, INVALID_TIME_WINDOW
+     *   2. the same time-window rules as createAuction (R14, R24): START_TIME_IN_PAST, INVALID_TIME_WINDOW,
+     *      AUCTION_TOO_SHORT, AUCTION_TOO_LONG
      *   3. if categoryId is given, the category must exist -> ResourceNotFoundException("Category", categoryId)
      *   4. let the entity apply its rules: auction.updateDetails(...)
      *   5. return the auction as an AuctionResponse
@@ -131,6 +138,13 @@ public class AuctionService {
         }
         if (!endTime.isAfter(startTime)) {
             throw new BusinessRuleException("INVALID_TIME_WINDOW","endTime must be after startTime");
+        }
+        var length = Duration.between(startTime, endTime);
+        if (length.compareTo(MIN_LENGTH) < 0) {
+            throw new BusinessRuleException("AUCTION_TOO_SHORT", "An auction must last at least 10 minutes.");
+        }
+        if (length.compareTo(MAX_LENGTH) > 0) {
+            throw new BusinessRuleException("AUCTION_TOO_LONG", "An auction can last at most 4 months (120 days).");
         }
     }
 }

@@ -338,14 +338,14 @@ stateDiagram-v2
 
 ### Open questions
 
-These are tracked, with your reasoning, in [business-rules.md](business-rules.md#open-questions-for-you). Decide them before Milestone 6:
+All decided. The reasoning is in [business-rules.md](business-rules.md#product-decisions).
 
-1. ~~Must the first bid be at least `startingPrice`, or at least `startingPrice + minimumIncrement`?~~ **Decided:** at least `startingPrice` (R5).
-2. Anti-sniping: should a late bid extend the end time, and by how much?
-3. May the current highest bidder raise their own bid?
-4. Should sellers be able to set a hidden reserve price?
-5. What are the minimum and maximum auction durations?
-6. Are paise allowed in bids, or only whole rupees?
+1. First bid: at least `startingPrice` (R5).
+2. Anti-sniping: no, the end time is fixed (decided 2026-11-16).
+3. The current leader may raise their own bid (R26).
+4. No hidden reserve price.
+5. An auction lasts 10 minutes to 4 months (R24).
+6. Whole rupees only (R25).
 
 ---
 

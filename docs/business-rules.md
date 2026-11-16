@@ -43,6 +43,9 @@ stateDiagram-v2
 | R21 | When bids race, exactly one wins. The others get a clear answer (`409 CONCURRENT_UPDATE` or `422 BID_TOO_LOW`), never a `500` | `@Version` on `Auction`, `GlobalExceptionHandler`, `SELECT ... FOR UPDATE` in `placeBid` (Challenge 8) | ✅ |
 | R22 | Auctions move on time without anyone clicking: `SCHEDULED` → `ACTIVE` once `startTime` arrives, `ACTIVE` → `COMPLETED` once `endTime` arrives. Only these two moves happen automatically; `DRAFT` and `CANCELLED` are never touched | `Auction.start`, `Auction.complete`, `AuctionLifecycleService.advance`, run every 5 s by `AuctionLifecycleJob` (Challenge 9) | ✅ |
 | R23 | A repeated bid request (same bidder, same `Idempotency-Key`) never places a second bid. The same auction and amount get the original bid back; anything else gets `422 IDEMPOTENCY_KEY_REUSED` | `BidService.placeBid`, unique index on `bids (bidder_id, idempotency_key)` (Challenge 10) | ✅ |
+| R24 | An auction lasts at least 10 minutes and at most 4 months (120 days) | `AuctionService.validateTimeWindow` (`AUCTION_TOO_SHORT`, `AUCTION_TOO_LONG`); the auction form checks it too | ✅ |
+| R25 | Money is in whole rupees: starting price, increment and bid amount have no paise | `@WholeRupees` on the request DTOs (400, "must be in whole rupees"); the UI inputs step by ₹1 | ✅ |
+| R26 | The current leader may raise their own bid; the usual minimum (current price + increment) applies | `Auction.acceptBid` (no leader check), `AuctionTest.letsTheLeaderRaiseTheirOwnBid` | ✅ |
 
 ## Concurrency: the most important scenario
 
@@ -64,14 +67,19 @@ The plan for Milestone 6: inside one database transaction, **lock or version** t
 - **Keep the locked transaction short.** It holds the row lock and a database connection. Slow side effects (emails, notifications, WebSocket pushes) run **after commit**, never inside `placeBid`.
 - `BidConcurrencyIntegrationTest` proves it: 8 simultaneous bids give one winner, seven 422s, no 409s and no 500s, and the price, the leader and the history agree.
 
-## Open questions for you
+## Product decisions
 
-Decide these before Milestone 6, and write your answers here with your reasoning:
+All six open questions are decided. Revisit them here if the product changes.
 
 1. **First bid:** must it be ≥ `startingPrice`, or ≥ `startingPrice + minimumIncrement`?
    **Decided (2026-10-30): ≥ `startingPrice`.** A first bid equal to the starting price is valid, because the seller already said they would sell at that price. The increment applies only once there is a bid to beat. See R5.
-2. **Anti-sniping:** if a bid arrives in the last 2 minutes, should `endTime` be extended (as eBay-style "soft close" does)? By how much?
+2. **Anti-sniping:** if a bid arrives in the last 2 minutes, should `endTime` be extended (as eBay-style "soft close" does)?
+   **Decided (2026-11-16): no, not for now.** The end time is fixed once published. Revisit if last-second bids become a complaint.
 3. **Self-outbidding:** may the current highest bidder raise their own bid?
+   **Decided (2026-11-16): yes** (R26). The usual minimum applies: current price + increment. `acceptBid` already allows it; `AuctionTest.letsTheLeaderRaiseTheirOwnBid` locks it in.
 4. **Reserve price:** should sellers be able to set a hidden minimum below which the item isn't sold?
+   **Decided (2026-11-16): no.** The starting price is the only minimum, and it's visible to everyone.
 5. **Duration limits:** minimum and maximum auction length?
+   **Decided (2026-11-16): at least 10 minutes, at most 4 months** (R24). "4 months" is counted as 120 days, because the server works in UTC `Instant`s and calendar months vary in length.
 6. **Increment rounding:** should a bid of ₹1,100.50 be allowed, or only whole rupees?
+   **Decided (2026-11-16): whole rupees only** (R25), for bids, starting prices and increments. The `NUMERIC(12, 2)` columns stay, so paise could be allowed again later without a migration.

@@ -25,6 +25,7 @@ export function BidPanel({ auction }: { auction: Auction }) {
 
   const minimum = minimumNextBid(auction)
   const live = auction.status === 'ACTIVE'
+  const hasPaise = amount !== '' && !Number.isInteger(Number(amount))
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -67,10 +68,11 @@ export function BidPanel({ auction }: { auction: Auction }) {
         value={amount}
         onChange={(event) => setAmount(event.target.value)}
         disabled={!live}
-        helperText={`Minimum next bid: ${formatPrice(minimum)}`}
+        error={hasPaise}
+        helperText={hasPaise ? 'Whole rupees only' : `Minimum next bid: ${formatPrice(minimum)}`}
         slotProps={{
           input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> },
-          htmlInput: { min: minimum, step: '0.01' },
+          htmlInput: { min: minimum, step: '1' },
         }}
       />
       <Button
@@ -79,7 +81,7 @@ export function BidPanel({ auction }: { auction: Auction }) {
         variant="contained"
         startIcon={<GavelRounded />}
         loading={placeBid.isPending}
-        disabled={!live || amount === ''}
+        disabled={!live || amount === '' || hasPaise}
       >
         Place bid
       </Button>

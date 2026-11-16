@@ -86,6 +86,18 @@ class BidApiIntegrationTest {
                 .extractingPath("$.fieldErrors.amount").isNotNull();
     }
 
+    /** R25: whole rupees only. "100.00" is still fine; "100.50" is not. */
+    @Test
+    void rejectsABidWithPaise() {
+        assertThat(mvc.post().uri("/api/v1/auctions/{id}/bids", auction.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"bidderId\": %d, \"amount\": 100.50}".formatted(bidder.getId())))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson()
+                .extractingPath("$.fieldErrors.amount").isEqualTo("must be in whole rupees");
+        assertThat(bidRepository.count()).isZero();
+    }
+
     @Test
     void refusesToCancelAnAuctionOnceItHasABid() {
         assertThat(mvc.post().uri("/api/v1/auctions/{id}/bids", auction.getId())

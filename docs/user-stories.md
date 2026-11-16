@@ -59,7 +59,7 @@ As a bidder, I want to be told when I've been outbid.
 **US-23 Win an auction** (M7)
 As a bidder, I want to know when I've won and see it in "My wins".
 
-**US-24 My bids** (M6)
+**US-24 My bids** (moved to M5: needs the signed-in user)
 As a bidder, I want a list of auctions I've bid on, showing whether I'm currently winning, so that I can follow them in one place.
 
 **US-25 Watch an auction** (M7)

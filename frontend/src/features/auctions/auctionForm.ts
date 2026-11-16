@@ -2,6 +2,14 @@ import { z } from 'zod'
 
 import type { Auction, AuctionInput } from './types'
 
+/** R24, mirrored from AuctionService. "4 months" is a fixed 120 days. */
+const MIN_LENGTH_MS = 10 * 60_000
+const MAX_LENGTH_MS = 120 * 86_400_000
+
+function lengthMs(v: { startTime: string; endTime: string }): number {
+  return new Date(v.endTime).getTime() - new Date(v.startTime).getTime()
+}
+
 /** Client-side validation gives instant feedback. The server still re-validates everything. */
 export const auctionFormSchema = z
   .object({
@@ -9,14 +17,22 @@ export const auctionFormSchema = z
     description: z.string().max(5000).optional(),
     categoryId: z.string(),
     coverImageUrl: z.union([z.literal(''), z.url('Enter a valid URL')]),
-    startingPrice: z.number({ error: 'Enter a price' }).min(1, 'Must be at least ₹1'),
-    minimumIncrement: z.number({ error: 'Enter an increment' }).min(1, 'Must be at least ₹1'),
+    startingPrice: z.number({ error: 'Enter a price' }).int('Whole rupees only').min(1, 'Must be at least ₹1'),
+    minimumIncrement: z.number({ error: 'Enter an increment' }).int('Whole rupees only').min(1, 'Must be at least ₹1'),
     startTime: z.string().min(1, 'Required'),
     endTime: z.string().min(1, 'Required'),
   })
   .refine((v) => new Date(v.endTime) > new Date(v.startTime), {
     path: ['endTime'],
     message: 'Must be after the start time',
+  })
+  .refine((v) => lengthMs(v) <= 0 || lengthMs(v) >= MIN_LENGTH_MS, {
+    path: ['endTime'],
+    message: 'An auction must last at least 10 minutes',
+  })
+  .refine((v) => lengthMs(v) <= MAX_LENGTH_MS, {
+    path: ['endTime'],
+    message: 'An auction can last at most 4 months (120 days)',
   })
 
 export type AuctionFormValues = z.infer<typeof auctionFormSchema>

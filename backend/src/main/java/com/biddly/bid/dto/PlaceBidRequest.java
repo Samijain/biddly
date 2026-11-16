@@ -2,6 +2,8 @@ package com.biddly.bid.dto;
 
 import java.math.BigDecimal;
 
+import com.biddly.common.WholeRupees;
+
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
@@ -14,5 +16,5 @@ import jakarta.validation.constraints.NotNull;
  */
 public record PlaceBidRequest(
         @NotNull Long bidderId,
-        @NotNull @DecimalMin("1.00") @Digits(integer = 10, fraction = 2) BigDecimal amount) {
+        @NotNull @DecimalMin("1") @Digits(integer = 10, fraction = 2) @WholeRupees BigDecimal amount) {
 }

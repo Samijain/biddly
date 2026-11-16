@@ -81,6 +81,46 @@ class AuctionServiceTest {
     }
 
     @Test
+    void acceptsAnAuctionOfExactlyTenMinutes() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(new User("Asha", "asha@test.dev")));
+        var start = NOW.plus(1, ChronoUnit.HOURS);
+
+        var response = service.createAuction(request(start, start.plus(10, ChronoUnit.MINUTES)));
+
+        assertThat(response.status()).isEqualTo(AuctionStatus.DRAFT);
+    }
+
+    @Test
+    void rejectsAnAuctionShorterThanTenMinutes() {
+        var start = NOW.plus(1, ChronoUnit.HOURS);
+
+        assertThatThrownBy(() -> service.createAuction(request(start, start.plus(9, ChronoUnit.MINUTES).plusSeconds(59))))
+                .isInstanceOf(BusinessRuleException.class)
+                .extracting("code").isEqualTo("AUCTION_TOO_SHORT");
+        verify(auctionRepository, never()).save(any());
+    }
+
+    @Test
+    void acceptsAnAuctionOfExactly120Days() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(new User("Asha", "asha@test.dev")));
+        var start = NOW.plus(1, ChronoUnit.HOURS);
+
+        var response = service.createAuction(request(start, start.plus(120, ChronoUnit.DAYS)));
+
+        assertThat(response.status()).isEqualTo(AuctionStatus.DRAFT);
+    }
+
+    @Test
+    void rejectsAnAuctionLongerThan120Days() {
+        var start = NOW.plus(1, ChronoUnit.HOURS);
+
+        assertThatThrownBy(() -> service.createAuction(request(start, start.plus(120, ChronoUnit.DAYS).plusSeconds(1))))
+                .isInstanceOf(BusinessRuleException.class)
+                .extracting("code").isEqualTo("AUCTION_TOO_LONG");
+        verify(auctionRepository, never()).save(any());
+    }
+
+    @Test
     void rejectsUnknownSeller() {
         when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
@@ -187,6 +227,21 @@ class AuctionServiceTest {
             assertThatThrownBy(() -> service.updateAuction(5L, update(start, start, null)))
                     .isInstanceOf(BusinessRuleException.class)
                     .extracting("code").isEqualTo("INVALID_TIME_WINDOW");
+        }
+
+        @Test
+        void appliesTheLengthLimitsToEditsToo() {
+            var auction = draft(NOW.plus(1, ChronoUnit.HOURS));
+            when(auctionRepository.findById(5L)).thenReturn(Optional.of(auction));
+            var start = NOW.plus(2, ChronoUnit.HOURS);
+
+            assertThatThrownBy(() -> service.updateAuction(5L, update(start, start.plus(5, ChronoUnit.MINUTES), null)))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("AUCTION_TOO_SHORT");
+            assertThatThrownBy(() -> service.updateAuction(5L, update(start, start.plus(121, ChronoUnit.DAYS), null)))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .extracting("code").isEqualTo("AUCTION_TOO_LONG");
+            assertThat(auction.getTitle()).isEqualTo("Vintage clock");
             assertThat(auction.getTitle()).isEqualTo("Vintage clock");
         }
 

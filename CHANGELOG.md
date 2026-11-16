@@ -6,6 +6,25 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 
 ## [Unreleased]
 
+### Added - Auction length limits and whole rupees (2026-11-16)
+
+- **R24:** creating or editing an auction shorter than 10 minutes gives 422 `AUCTION_TOO_SHORT`; longer than 120 days gives 422 `AUCTION_TOO_LONG`. The auction form shows the same errors before submitting.
+- **R25:** a starting price, increment or bid with paise gives 400 with the field error "must be in whole rupees". `100` and `100.00` are both fine. New constraint `common.WholeRupees`.
+  - The auction form rejects paise; the bid box shows "Whole rupees only", steps by ₹1 and disables **Place bid**.
+- Tests: 5 new `AuctionServiceTest` cases, `AuctionApiIntegrationTest.rejectsPricesWithPaise`, `BidApiIntegrationTest.rejectsABidWithPaise`, and `auctionForm.test.ts` (4). Backend 101/101, frontend 19/19.
+
+### Changed - Product decisions (2026-11-16)
+
+- The six open product questions are decided and recorded in `business-rules.md` under "Product decisions":
+  - first bid at least the starting price;
+  - no anti-sniping;
+  - the leader may raise their own bid (R26);
+  - no reserve price;
+  - 10 minutes to 4 months (R24);
+  - whole rupees only (R25).
+- New test `AuctionTest.letsTheLeaderRaiseTheirOwnBid`.
+- US-24 "My bids" moves from Milestone 6 to Milestone 5, because it needs the signed-in user.
+
 ### Added - Challenge 10: idempotent bids (2026-11-13)
 
 - `BidService.placeBid`: after locking the auction, a request with a key looks up this bidder's earlier bid with that key.

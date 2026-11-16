@@ -124,7 +124,7 @@ gh auth switch -u kj185108_DFH    # CLI back to the work account
 ### Next session (as planned on 2026-10-13)
 
 1. You: Challenges 1, 2 and 3 (see [CHALLENGES.md](CHALLENGES.md)).
-2. Answer the open questions in [business-rules.md](business-rules.md#open-questions-for-you).
+2. Answer the open questions in [business-rules.md](business-rules.md#product-decisions).
 3. Then: Milestone 4 completion (publish/cancel auction, OpenAPI docs) and the start of the bids table.
 
 ---
@@ -821,3 +821,46 @@ The last missing piece of Milestone 6. A bid whose answer is lost (timeout, flak
 
 Challenge 10 complete, and with it Milestone 6, the bidding engine. The bidder is still chosen from a demo picker until sign-in (Milestone 5).
 
+---
+
+## Session 23 - 2026-11-16 - Product decisions
+
+You answered the six open product questions. They're now under "Product decisions" in `business-rules.md`.
+
+| Question | Decision | Code impact |
+|---|---|---|
+| First bid | At least the starting price | None, already R5 |
+| Anti-sniping | No, the end time stays fixed | None |
+| Leader raises own bid | Yes, with the usual increment (R26) | None, `acceptBid` already allows it. New test `AuctionTest.letsTheLeaderRaiseTheirOwnBid` |
+| Reserve price | No | None |
+| Auction length | 10 minutes to 4 months (R24) | Checks next to R14 in `AuctionService` (session 24) |
+| Paise | Whole rupees only (R25) | Validation on the request DTOs, ₹1 steps in the UI (session 24) |
+
+- **"4 months" is 120 days.** The server compares UTC `Instant`s, and calendar months differ in length (Feb vs Mar). A fixed number of days is simpler to test and explain.
+- **The database stays `NUMERIC(12, 2)`.** Whole rupees is a rule about input, not storage, so paise can come back without a migration.
+- **Existing dev data already follows both new rules:** no paise anywhere, and every auction is between 10 minutes and 4 months long.
+
+**Correction:** session 22 called Milestone 6 complete, but **US-24 "My bids"** is still open. It needs to know who "me" is, so it moves into the sign-in work (Milestone 5).
+
+
+---
+
+## Session 24 - 2026-11-16 - Auction length limits and whole rupees (R24, R25)
+
+At your request, I implemented both rules myself instead of setting them as a challenge.
+
+**R24, auction length.** `AuctionService.validateTimeWindow` already checked R14 (the end comes after the start). It now also measures `Duration.between(start, end)`:
+
+- Under 10 minutes gives 422 `AUCTION_TOO_SHORT`.
+- Over 120 days gives 422 `AUCTION_TOO_LONG`.
+- Exactly 10 minutes and exactly 120 days are allowed.
+
+Because create and update share this method, editing a draft gets the same limits. The auction form (`auctionForm.ts`) checks the same limits, so the user sees the error before submitting.
+
+**R25, whole rupees.** I first used `@Digits(integer = 10, fraction = 0)`, and 11 existing tests failed. **Gotcha:** Hibernate Validator counts the decimal places as written, so `100.00` fails even though it's a whole number. The fix is a small custom constraint, `common.WholeRupees`, which checks `value.stripTrailingZeros().scale() <= 0`:
+
+- `100` and `100.00` pass; `100.50` fails with 400 "must be in whole rupees".
+- `@Digits(fraction = 2)` stays, so the value still fits `NUMERIC(12, 2)`.
+- In the UI, the auction form uses zod `.int()`. The bid box steps by ₹1, shows "Whole rupees only" and disables **Place bid** when the amount has paise.
+
+**Tests:** backend 101/101, frontend 19/19. The form tests use a November-to-March window, so a daylight-saving change can't shift the 120-day boundary on machines that use a DST time zone.
