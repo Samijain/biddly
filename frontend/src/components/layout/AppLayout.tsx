@@ -53,6 +53,9 @@ export function AppLayout() {
             </Stack>
             <Box sx={{ flexGrow: 1 }} />
             <ColorModeToggle />
+            <Button component={NavLink} to="/register" color="inherit" sx={{ color: 'text.secondary' }}>
+              Create account
+            </Button>
             <Button variant="contained" startIcon={<AddRounded />} component={NavLink} to="/auctions/new">
               Sell an item
             </Button>

@@ -73,8 +73,8 @@ erDiagram
 
 | Table | Milestone | Notes |
 |---|---|---|
-| `roles`, `user_roles` | M5 | BIDDER, SELLER, ADMIN |
-| `refresh_tokens` | M5 | Store a hash, never the raw token |
+| `users` changes | M5 | `password_hash` stays nullable: a Google-only account has none. **V4 (Challenge 11a) adds `role`** (`USER` or `ADMIN`, default `USER`, `ck_users_role`). Still to come: `google_subject` (Google's account ID, unique when present; 11d) and `seller_status` (`NONE`, `PENDING`, `APPROVED`, `REJECTED`; R32). Existing seed sellers start as `APPROVED`. A check makes sure every account has at least one way to sign in: a password or a Google ID |
+| `refresh_tokens` | M5 | `user_id`, `token_hash`, `expires_at`, `revoked_at`. Store a hash, never the raw token. The same table serves password and Google sign-ins |
 | `idempotency_keys` | Later | Not needed yet: Challenge 10 stores the key on `bids.idempotency_key` (V3), unique per bidder. A separate table or Redis with a TTL becomes worth it if keys must expire or cover other endpoints |
 | `watchlist` | M7 | Composite PK `(user_id, auction_id)` |
 | `notifications` | M7 | `read_at` nullable |

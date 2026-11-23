@@ -20,7 +20,7 @@ stateDiagram-v2
 
 | # | Rule | Enforced by | Status |
 |---|---|---|---|
-| R1 | Only the auction owner can edit a draft | Service + auth (M5) | ⏳ |
+| R1 | Only the auction owner can edit, publish or cancel it. Anyone else gets `403` | Service + auth (Challenge 11c) | ⏳ |
 | R2 | A published auction's price rules (starting price, increment) cannot change | `Auction.updateDetails` (Challenge 6, via R18) | ✅ |
 | R3 | A seller cannot bid on their own auction | `Auction.acceptBid`, comparing user ids (Challenge 7) | ✅ |
 | R4 | A bid must arrive before `endTime`, judged by the **server clock**. A bid at exactly `endTime` is too late | `Auction.acceptBid` with `now` from `BidService`'s `Clock` (Challenge 7) | ✅ |
@@ -47,6 +47,19 @@ stateDiagram-v2
 | R25 | Money is in whole rupees: starting price, increment and bid amount have no paise | `@WholeRupees` on the request DTOs (400, "must be in whole rupees"); the UI inputs step by ₹1 | ✅ |
 | R26 | The current leader may raise their own bid; the usual minimum (current price + increment) applies | `Auction.acceptBid` (no leader check), `AuctionTest.letsTheLeaderRaiseTheirOwnBid` | ✅ |
 
+## Accounts and sign-in (Milestone 5)
+
+| # | Rule | Enforced by | Status |
+|---|---|---|---|
+| R27 | One account per email, compared case-insensitively. Registering a used email gives `409 EMAIL_TAKEN` | `AuthService.register` (stores the email in lower case, checks first, and turns a lost race on `uq_users_email_lower` into the same 409) (Challenge 11a) | ✅ |
+| R28 | A password is at least 8 characters and at most 72 bytes in UTF-8 (BCrypt's limit; `422 PASSWORD_TOO_LONG`), and is stored only as a BCrypt hash. A failed sign-in says "Wrong email or password" whether the email exists or not | `RegisterRequest`, `AuthService.register` with BCrypt (Challenge 11a, done); the sign-in message comes in 11b | 🟡 |
+| R29 | Every write needs a signed-in user (`401` otherwise). The seller and the bidder are the signed-in user, never ids from the request body | Spring Security filter chain; `sellerId` and `bidderId` leave the request DTOs (Challenge 11c) | ⏳ |
+| R30 | A Google sign-in is accepted only with a Google ID token whose signature, issuer, audience (our client ID) and expiry check out, and whose email is verified. The account is found by Google's account ID (`sub`), never by email alone | Google token verifier, `users.google_subject` (Challenge 11d) | ⏳ |
+| R31 | Google sign-in never takes over an existing password account with the same email: it gets `409 ACCOUNT_EXISTS` ("sign in with your password"). See Product decision 7 | Google sign-in service (Challenge 11d) | ⏳ |
+| R32 | Only a user whose seller status is `APPROVED` can create auctions (`403 SELLER_NOT_APPROVED` otherwise). A user can request seller access (`NONE` or `REJECTED` → `PENDING`); only an `ADMIN` can approve or reject a `PENDING` request. Bidding needs no approval | `User` seller-status methods, `AuctionService.createAuction`, admin endpoints (Challenge 11e) | ⏳ |
+
+**Known trade-off: sign-up reveals which emails have accounts.** `409 EMAIL_TAKEN` tells anyone that an email is registered, so the vague sign-in message (R28) only partly hides it. The full fix is email verification: sign-up always answers "check your inbox", and the email either finishes registration or says "you already have an account". That also stops account pre-hijacking. Biddly can't send email yet, so this is accepted for now. Rate limiting (Milestone 7) will slow down anyone testing emails in bulk.
+
 ## Concurrency: the most important scenario
 
 The current bid is ₹1,000. Two people bid ₹1,100 and ₹1,200 at the same instant. This must **never** happen:
@@ -69,7 +82,7 @@ The plan for Milestone 6: inside one database transaction, **lock or version** t
 
 ## Product decisions
 
-All six open questions are decided. Revisit them here if the product changes.
+All eight questions are decided. Revisit them here if the product changes.
 
 1. **First bid:** must it be ≥ `startingPrice`, or ≥ `startingPrice + minimumIncrement`?
    **Decided (2026-10-30): ≥ `startingPrice`.** A first bid equal to the starting price is valid, because the seller already said they would sell at that price. The increment applies only once there is a bid to beat. See R5.
@@ -83,3 +96,7 @@ All six open questions are decided. Revisit them here if the product changes.
    **Decided (2026-11-16): at least 10 minutes, at most 4 months** (R24). "4 months" is counted as 120 days, because the server works in UTC `Instant`s and calendar months vary in length.
 6. **Increment rounding:** should a bid of ₹1,100.50 be allowed, or only whole rupees?
    **Decided (2026-11-16): whole rupees only** (R25), for bids, starting prices and increments. The `NUMERIC(12, 2)` columns stay, so paise could be allowed again later without a migration.
+7. **Google sign-in with an email that already has a password account:** what happens?
+   **Decided (2026-11-16): refuse** with `409 ACCOUNT_EXISTS` and ask the user to sign in with their password. Linking Google from the profile page can come later. Auto-linking is friendlier, but Biddly doesn't verify emails at registration, so someone could register *your* Gmail address with their own password first and then share your account once you sign in with Google ("account pre-hijacking").
+8. **Roles:** separate `BIDDER` and `SELLER` roles, or one `USER` role that can do both, plus `ADMIN`?
+   **Decided (2026-11-16): `USER` and `ADMIN`, with seller approval** (R32). Every signed-in user can bid. Creating auctions needs a seller status of `APPROVED`: the user asks, and an admin approves or rejects. "Seller of this auction" is still ownership (R1), not a role.

@@ -67,10 +67,32 @@ As a bidder, I want to save auctions to a watchlist so that I can come back befo
 
 ## Accounts
 
-**US-30 Register / sign in / sign out** (M5)
-**US-31 Protected pages redirect to sign-in** (M5)
+**US-30 Register / sign in / sign out** (M5, Challenges 11a and 11b)
+As a visitor, I want to create an account with my email and a password so that I can bid and sell.
+- AC ✅ (Challenge 11a): Registering with an email that's already used gives a clear error (R27). The password is never stored, only its BCrypt hash (R28).
+- AC: A wrong email and a wrong password get the same message, so nobody can test which emails have accounts (R28).
+- AC: I stay signed in after a page refresh (refresh cookie). Signing out ends the session on the server too.
+
+**US-31 Protected pages redirect to sign-in** (M5, Challenge 11c)
+- AC: Creating, editing, publishing and cancelling auctions, and bidding, need a signed-in user. The seller and the bidder come from the token, never from the request body (R29).
+- AC: Only the owner can edit, publish or cancel an auction (R1).
+
+**US-32 Sign in with Google** (M5, Challenge 11d)
+As a visitor, I want to sign up or sign in with my Google account so that I don't need another password.
+- AC: The first Google sign-in creates an account with my Google name and email, and no password. Later sign-ins find the same account by Google's account ID (R30).
+- AC: Only a valid Google ID token for Biddly, with a verified email, is accepted (R30).
+- AC: If my email already has a password account, Google sign-in is refused with "This email already has an account, sign in with your password" (R31).
+
+**US-33 Request seller access** (M5, Challenge 11e)
+As a user, I want to ask to become a seller so that I can list items once an admin approves me.
+- AC: A new account can bid straight away, but can't create auctions until approved (R32).
+- AC: I can see my seller status (none, pending, approved, rejected). After a rejection I can ask again.
 
 ## Administration
+
+**US-43 Approve seller requests** (M5, Challenge 11e)
+As an administrator, I want to approve or reject seller requests so that only trusted people can list items.
+- AC: I see the pending requests, oldest first. Only an `ADMIN` can approve or reject, and only a `PENDING` request (R32).
 
 **US-40 Suspend a user** (post-MVP)
 **US-41 View audit history** (post-MVP)

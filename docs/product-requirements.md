@@ -92,7 +92,7 @@ In a task-list app, the basic actions are adding a task, editing it and marking 
 - **US-21 See live price changes** [M7]: As a bidder, I want the price to update without refreshing, so that I can react to competing bids.
 - **US-22 Outbid notification** [M7]: As a bidder, I want to be told when I've been outbid.
 - **US-23 Win an auction** [M7]: As a bidder, I want to know when I've won and see it in "My wins".
-- **US-24 My bids** [M6]: As a bidder, I want a list of auctions I've bid on, showing whether I'm currently winning, so that I can follow them in one place.
+- **US-24 My bids** [M5]: As a bidder, I want a list of auctions I've bid on, showing whether I'm currently winning, so that I can follow them in one place.
 - **US-25 Watch an auction** [M7]: As a bidder, I want to save auctions to a watchlist, so that I can come back before they end.
 
 ### Browsing
@@ -104,8 +104,11 @@ In a task-list app, the basic actions are adding a task, editing it and marking 
 
 ### Accounts
 
-- **US-30 Register, sign in and sign out** [M5]
+- **US-30 Register, sign in and sign out** [M5]: As a visitor, I want to create an account with my email and a password, so that I can bid and sell.
 - **US-31 Protected pages redirect to sign-in** [M5]
+- **US-32 Sign in with Google** [M5]: As a visitor, I want to sign up or sign in with my Google account, so that I don't need another password.
+- **US-33 Request seller access** [M5]: As a user, I want to ask to become a seller, so that I can list items once an admin approves me.
+- **US-43 Approve seller requests** [M5]: As an administrator, I want to approve or reject seller requests, so that only trusted people can list items.
 
 ### Administration
 
@@ -186,8 +189,9 @@ stateDiagram-v2
 ### 5.6 Authentication and authorization [M5]
 
 - Users register and sign in with an email address and password. Passwords are hashed with BCrypt.
-- Short-lived JWT access tokens, plus a refresh token in an HttpOnly cookie.
-- Roles (`BIDDER`, `SELLER`, `ADMIN`) and ownership checks are applied on every write endpoint.
+- Users can also sign up and sign in with Google (US-32). The browser gets a Google ID token, and the backend verifies it before trusting it: Google's signature, the issuer, the audience (our client ID), the expiry, and a verified email. Accounts are matched by Google's account ID (`sub`), not by email (R30, R31).
+- Both ways end the same: Biddly issues its own short-lived JWT access token, plus a refresh token in an HttpOnly cookie. Google's token is never used to call the Biddly API.
+- Roles are `USER` and `ADMIN`. Every user can bid; creating auctions needs seller approval from an admin (R32). Ownership checks are applied on every write endpoint (R1).
 - Protected pages redirect to sign-in (US-31).
 
 ### 5.7 Search, filtering and notifications [M3, M7]
@@ -202,8 +206,8 @@ stateDiagram-v2
 
 ### MVP scope
 
-1. Registration and sign-in
-2. Bidder and seller roles
+1. Registration and sign-in, with email and password or with Google
+2. User and admin roles, with admin-approved seller access
 3. Create and edit a draft auction
 4. Publish an auction
 5. List, search, sort and filter active auctions
@@ -296,7 +300,7 @@ stateDiagram-v2
 
 - Java 21 with Spring Boot 4.1
 - Spring Web MVC (REST API under `/api/v1`), Spring Data JPA, Bean Validation
-- Spring Security with JWT [M5]
+- Spring Security with JWT, and Google sign-in (OpenID Connect ID tokens) [M5]
 - Spring WebSocket (STOMP) [M7]
 - Spring Boot Actuator for health and metrics
 - Flyway for database migrations

@@ -6,6 +6,39 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 
 ## [Unreleased]
 
+### Added - Challenge 11a: register with email and password (2026-11-23)
+
+- `AuthService.register`:
+  - stores the email in lower case and the name trimmed;
+  - refuses passwords over 72 bytes (`422 PASSWORD_TOO_LONG`) before hashing;
+  - refuses a used email (`409 EMAIL_TAKEN`);
+  - stores only the BCrypt hash.
+- A sign-up that loses a race for the same email gets the same 409. Only a violation of `uq_users_email_lower` is turned into `EMAIL_TAKEN`; any other database error is still a logged 500.
+- All Challenge 11a tests enabled: 114/114 backend tests. Rule R27 is done, and R28 is done for registration.
+- Known trade-off recorded in `business-rules.md`: sign-up reveals which emails have accounts until email verification exists.
+
+### Added - Challenge 11a starter: register with email and password (2026-11-23)
+
+- Spring Security, with `SecurityConfig` still allowing every request (11c locks it down) and a BCrypt `PasswordEncoder`. Spring Boot's default generated-password user is switched off.
+- Migration `V4__add_user_role.sql`: `users.role` (`USER` or `ADMIN`). `User` stores the password hash; new `Role` enum and `UserRepository.existsByEmailIgnoreCase`.
+- `ConflictException`, mapped to **409** by `GlobalExceptionHandler`.
+- `POST /api/v1/auth/register` with `RegisterRequest` (its `toString` hides the password) and `AccountResponse`. `AuthService.register` is the challenge and answers 501 until solved.
+- Tests:
+  - Disabled: `AuthServiceTest` (8), `AuthApiIntegrationTest` (3) and `RegistrationRaceIntegrationTest` (1).
+  - Enabled: one Bean Validation test.
+- Frontend: a **Create account** link in the header, and a register page at `/register` with a form schema (`registerForm.ts`, 4 tests).
+- Backend 102 tests pass with 12 skipped; frontend 23/23.
+
+### Changed - Sign-in plan adds Google (2026-11-16)
+
+- Milestone 5 now includes **Sign in with Google** (new story US-32), next to email and password. Both end in the same Biddly session (access JWT and refresh cookie).
+- Challenge 11 is planned in five parts: 11a register, 11b sign in and tokens, 11c protect the API, 11d Google sign-in, 11e seller approval.
+- New planned rules R27-R32 (unique email, password storage, signed-in writes, Google token checks, no takeover of password accounts, admin-approved sellers). R1 now covers publish and cancel too. New stories US-33 (request seller access) and US-43 (approve seller requests).
+- Product decisions 7 and 8:
+  - Google sign-in with an email that already has a password account is refused (`409 ACCOUNT_EXISTS`).
+  - Roles are `USER` and `ADMIN`; creating auctions needs admin approval.
+- New `docs/learning/authentication-primer.md`: what to learn first, in order.
+
 ### Added - Auction length limits and whole rupees (2026-11-16)
 
 - **R24:** creating or editing an auction shorter than 10 minutes gives 422 `AUCTION_TOO_SHORT`; longer than 120 days gives 422 `AUCTION_TOO_LONG`. The auction form shows the same errors before submitting.

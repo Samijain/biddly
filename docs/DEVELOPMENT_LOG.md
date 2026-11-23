@@ -864,3 +864,102 @@ Because create and update share this method, editing a draft gets the same limit
 - In the UI, the auction form uses zod `.int()`. The bid box steps by ₹1, shows "Whole rupees only" and disables **Place bid** when the amount has paise.
 
 **Tests:** backend 101/101, frontend 19/19. The form tests use a November-to-March window, so a daylight-saving change can't shift the 120-day boundary on machines that use a DST time zone.
+
+---
+
+## Session 25 - 2026-11-16 - Sign-in plan: add Google
+
+You asked for **Sign in with Google** alongside email and password, before starting the authentication challenge.
+
+**The design:** Google proves who the user is, and Biddly still issues its own session.
+
+1. The frontend shows Google's button. Google gives the browser an **ID token**, a JWT signed by Google.
+2. The frontend posts it to `POST /api/v1/auth/google`.
+3. The backend verifies it (signature, issuer, audience, expiry, verified email) and finds or creates the account by Google's `sub`.
+4. It then issues the **same** access JWT and refresh cookie as a password sign-in.
+
+**Why this flow and not the server-side authorization code flow:**
+- **No client secret:** the ID token flow needs only the public client ID, which keeps secrets out of Git and out of the dev setup.
+- **One session format:** every later part (11c, WebSocket in M7) only ever sees Biddly tokens, whatever the sign-in method.
+- **Testable:** a `GoogleTokenVerifier` interface lets tests sign fake tokens with a test key, so the test suite never calls Google.
+- The authorization code flow is still worth knowing for interviews; the primer covers the difference.
+
+**Order:** 11a register, 11b sign in and tokens, 11c protect the API, 11d Google. Google comes last because by then "issue a session" exists, and 11a-11c need no Google Cloud setup.
+
+**Data model:** `password_hash` stays nullable (Google-only accounts), plus `google_subject` (unique when present) and `role`. A check makes sure each account has a password or a Google ID.
+
+**Two decisions for you before 11a** (Product decisions 7 and 8 in `business-rules.md`):
+- Google sign-in with an email that already has a password account. Recommended: refuse and ask for the password, because Biddly doesn't verify emails at registration (account pre-hijacking).
+- Roles. Recommended: `USER` and `ADMIN`; "seller" is ownership, not a role.
+
+New docs: the Challenge 11 outline in `CHALLENGES.md`, rules R27-R31, US-32, and `docs/learning/authentication-primer.md`.
+
+**Decided the same day:**
+- **Decision 7: refuse** (`409 ACCOUNT_EXISTS`, R31).
+- **Decision 8: `USER` and `ADMIN`, with seller approval** (R32). Every user can bid; creating auctions needs a seller status of `APPROVED`, which an admin grants. You chose approval from the start over "everyone can sell".
+  - This adds part **11e**, plus stories US-33 (request seller access) and US-43 (approve seller requests).
+  - The first admin comes from the `BIDDLY_BOOTSTRAP_ADMIN_EMAIL` environment variable, so no admin credentials are in Git.
+  - Existing seed sellers start as `APPROVED`, so the dev auctions keep working.
+
+---
+
+## Session 26 - 2026-11-23 - Challenge 11a starter: registration
+
+You finished primer sections 1-3 (stateless tokens, cookie storage, password hashing), so I set up Challenge 11a.
+
+**What I prepared:**
+- **Spring Security, but open.** Adding the library alone would lock every endpoint behind a generated login. `SecurityConfig` sets `permitAll` for now, turns off CSRF, form login and HTTP Basic, and makes sessions stateless. 11c replaces `permitAll` with real rules.
+- **Spring Boot's default user is switched off** (`UserDetailsServiceAutoConfiguration` excluded). Otherwise every start printed "Using generated security password", for a user Biddly never uses.
+- **V4 adds only `role`.** I'd planned to add `google_subject` and `refresh_tokens` here too, but each part now adds its own migration. A migration can't change once applied, so it shouldn't contain guesses about later parts.
+- **409 vs 422:** a new `ConflictException` (409) for "this clashes with existing data", next to `BusinessRuleException` (422) for "this request breaks a rule".
+- **`RegisterRequest.toString()` hides the password.** A record's generated `toString` prints every field.
+
+**Two gotchas the tests cover:**
+- **BCrypt's limit is 72 bytes, not 72 characters.** `@Size(max = 72)` counts characters, so 25 `₹` signs (75 bytes) get through. Current Spring Security then makes `encode` throw an exception, which would be a 500; older versions silently cut the password short. The service has to check the bytes itself.
+- **Check-then-insert races.** Two sign-ups can both pass `existsByEmailIgnoreCase`. The unique index stops the second, but as a `DataIntegrityViolationException`. `RegistrationRaceIntegrationTest` makes the race happen every time with a `PasswordEncoder` that pauses for 500 ms.
+
+**How I checked the tests:** I backed up the stub, wrote a temporary solution, enabled the tests, ran them, then restored the files and touched them.
+- The temporary solution passed all 13 tests.
+- Without the `catch` around `save`, the race test failed: three of the four requests got 500s.
+
+**Results:** backend 102 tests pass with 12 skipped; frontend 23/23, with type check and lint clean.
+
+**Your running backend** has to be restarted, because DevTools can't load a new library. Its automatic restart after my build fails because the Spring Security classes are missing.
+---
+
+## Session 27 - 2026-11-23 - Challenge 11a: registration
+
+You implemented `AuthService.register`. It took four rounds:
+
+| Round | Tests passing | What was wrong |
+|---|---|---|
+| 1 | 7 of 13 | No lower-casing or trimming; the length check counted characters, not bytes; the race wasn't handled |
+| 2 | 7 of 13 | The name was lower-cased too; the byte check measured the hash (always 60) and ran after `encode`, which had already thrown |
+| 3 | 11 of 13 | `catch (ConflictException)`, but `save` never throws our own exception |
+| 4 | 13 of 13 | `catch (Exception)` passed the tests, but would report a database outage as "Email is already taken" |
+
+**The final version:**
+1. Trim the name, and lower-case the email with `Locale.ROOT`.
+2. Check the password's bytes.
+3. Check the email.
+4. Hash, then save.
+5. Catch `DataIntegrityViolationException`. Answer `EMAIL_TAKEN` only if the message names `uq_users_email_lower`; re-throw anything else, so it becomes a logged 500.
+
+The cheap checks run before the 100 ms hash.
+
+**Lessons:**
+- **Catch only what you can answer.** A broad `catch` hides real failures under a wrong message, and the global handler never logs them.
+- **Check-then-insert needs the database as the final judge.** It's the same layering as Challenge 8: the service check gives the friendly answer, and the unique index gives the guarantee.
+
+**Review answers** (average about 4.5/10):
+- **Strong:** the second half of Q2 (not every integrity error is a duplicate email).
+- **Missed:**
+  - Q1: emails *can* contain capitals; a stored canonical form keeps every later comparison simple.
+  - Q2: the race is why the index is needed.
+  - Q3: you mixed in pre-hijacking, but email verification fixes both.
+  - Q4: what actually happens: a 500 today, silent truncation in older versions.
+  - Q5: logs and error trackers are where passwords leak.
+  - Q6: unanswered; it's about wearing out the CPU, and rate limiting.
+- The sign-up enumeration trade-off is now recorded in `business-rules.md`.
+
+**Results:** backend 114/114 (13 for 11a), frontend 23/23. Next is 11b: sign in, the JWT access token, the refresh cookie and sign out. Read primer sections 4 and 5 first.

@@ -88,6 +88,7 @@ cd frontend; npm run lint; npm run typecheck
 | GET | `/api/v1/auctions/{id}/bids` | Done (newest first) |
 | POST | `/api/v1/auctions/{id}/bids` | Done (rules R3-R5; concurrent bids are serialised by a row lock) |
 | GET | `/api/v1/categories` | Done |
+| POST | `/api/v1/auth/register` | Done (BCrypt hash; `409 EMAIL_TAKEN`, `422 PASSWORD_TOO_LONG`) |
 | GET | `/actuator/health` | Done |
 
 Errors always use the same JSON shape:

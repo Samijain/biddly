@@ -5,6 +5,9 @@ spring:
     name: biddly-backend
   profiles:
     default: dev
+  autoconfigure:
+    # Spring Boot's default in-memory user with a random password. Biddly's accounts live in the users table.
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/biddly}
     username: ${DB_USERNAME:biddly}

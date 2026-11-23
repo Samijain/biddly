@@ -15,6 +15,11 @@ Ask for a hint whenever you are stuck, and ask for a code review when you are fi
 | 8 | Concurrent bids: optimistic vs pessimistic locking | Spring Boot / JPA / PostgreSQL | ✅ Done (2026-11-12): 59/59 backend tests, 8-bidder race tests against PostgreSQL |
 | 9 | Auction scheduler: start and close auctions on time (`Auction.start`, `Auction.complete`, `AuctionLifecycleService.advance`) | Spring Boot / JPA | ✅ Done (2026-11-13): 81/81 backend tests, 11 dev auctions moved in one live run |
 | 10 | Idempotent bids: a retry never places a second bid (`BidService.placeBid`) | Spring Boot / JPA / PostgreSQL | ✅ Done (2026-11-13): 93/93 backend tests, six simultaneous copies give one bid |
+| 11a | Register with email and password (`AuthService.register`) | Spring Boot / Spring Security | ✅ Done (2026-11-23): 114/114 backend tests, including four simultaneous sign-ups for one email |
+| 11b | Sign in, JWT access token, refresh cookie, sign out | Spring Boot / Spring Security | ⏳ Planned |
+| 11c | Protect the API: the signed-in user acts, ownership (R1), "My bids" | Spring Boot / Spring Security / React | ⏳ Planned |
+| 11d | Sign in with Google (verify Google's ID token) | Spring Boot / OpenID Connect / React | ⏳ Planned |
+| 11e | Seller approval: request, admin approves, only approved sellers create auctions | Spring Boot / Spring Security / React | ⏳ Planned |
 
 ---
 
@@ -548,3 +553,138 @@ Compare amounts with `compareTo`, not `equals`: `new BigDecimal("1000").equals(n
 Hint 3
 
 If the race test gets 422 `BID_TOO_LOW` for five of the six copies, ask yourself when each copy can first *see* the bid the first copy stored, and what each copy is waiting for before that.
+
+---
+
+## Challenge 11 - Sign-in (plan, Milestone 5)
+
+**Why:** today the browser says who it is. `sellerId` and `bidderId` come from the request body, so anyone can sell or bid as anyone, and anyone can edit anyone's draft. After Challenge 11, the server knows who is calling and decides what they may do.
+
+Users can sign up and sign in **two ways: with an email and a password, or with Google**. Both end the same way: Biddly gives the browser **its own** tokens. After sign-in, the rest of the app doesn't care how you signed in.
+
+```mermaid
+flowchart LR
+    P["Email + password"] -->|"11b: check BCrypt hash"| S
+    G["Google button"] -->|"11d: verify Google ID token"| S
+    S["Issue Biddly session:<br/>access JWT + refresh cookie"] --> A["API calls carry the JWT<br/>11c: who are you, may you?"]
+```
+
+Learn the basics first: [authentication primer](learning/authentication-primer.md). Product decisions 7 (Google refuses to take over a password account) and 8 (`USER` and `ADMIN`, with admin-approved sellers) are settled in `business-rules.md`.
+
+Each part gets a full brief, starter code and disabled tests when it starts, like the earlier challenges. This is the outline.
+
+### 11a - Register with email and password
+
+- **You build:** `POST /api/v1/auth/register`. Validate the input, refuse a used email (`409 EMAIL_TAKEN`, R27), hash the password with BCrypt (R28) and create the user.
+- **I prepare:** the Spring Security dependency, a security config that still lets everything through (so nothing breaks yet), migration V4 (the `role` column; each later part adds its own columns and tables), the DTOs, a register page in the frontend, and disabled tests. Full brief: [Challenge 11a](#challenge-11a---register-with-email-and-password-spring-boot--spring-security) below.
+- **You learn:** why passwords are hashed, not encrypted; salts and the BCrypt work factor; the 72-byte BCrypt limit; why the database's unique index is still needed when the service checks first.
+
+### 11b - Sign in, tokens and sign out
+
+- **You build:** `POST /auth/login` checks the password and issues a session: a **15-minute access JWT** signed by Biddly, plus a **refresh token** (a long random string) in an `HttpOnly` cookie, stored in `refresh_tokens` only as a hash. `POST /auth/refresh` swaps an old refresh token for a new one (rotation). `POST /auth/logout` revokes it. `GET /auth/me` returns the signed-in user.
+- **The key design point:** "issue a session for this user" is **one method**. Google sign-in in 11d calls the same method.
+- **I prepare:** the JWT signing key from an environment variable (never in Git), the cookie settings, the sign-in page, and an auth context in React that keeps the access token in memory.
+- **You learn:** what is inside a JWT and why it is signed but not encrypted; why access tokens are short-lived; why the refresh token goes in an `HttpOnly` cookie rather than `localStorage`; rotation and reuse detection.
+
+### 11c - Protect the API
+
+- **You build:** write endpoints need a valid JWT (`401` otherwise, R29). `sellerId` and `bidderId` leave the request bodies; the service takes the signed-in user instead. Only the owner may edit, publish or cancel (`403`, R1). Add **"My bids"** (US-24).
+- **I prepare:** the JWT check in the Spring Security filter chain, JSON `401` and `403` answers in the usual `ApiError` shape, the frontend's automatic refresh-and-retry on `401`, protected routes (US-31), and the "Bid as" picker removed.
+- **You learn:** the Spring Security filter chain, `SecurityContext` and `@AuthenticationPrincipal`; `401` vs `403`; why trusting ids from the client is the classic "IDOR" bug.
+
+### 11d - Sign in with Google
+
+- **How it works:** the frontend shows Google's **Sign in with Google** button. Google signs the user in and gives the browser an **ID token**, a JWT signed by Google that says who the user is. The frontend posts it to `POST /api/v1/auth/google`. The backend verifies it and then calls 11b's "issue a session" method.
+- **You build:** the verification and account rules:
+  - **Verify (R30):** Google's signature (public keys from Google's JWKS URL), issuer `https://accounts.google.com`, audience = **our** client ID, not expired, `email_verified` is true.
+  - **Find the account by Google's `sub`**, the account ID that never changes. Found: sign in.
+  - **Not found, and no account has this email:** create one with the Google name and email, and no password.
+  - **Not found, but the email already has a password account:** refuse with `409 ACCOUNT_EXISTS` (R31).
+- **I prepare:** the Google button in the frontend, a `GoogleTokenVerifier` interface so tests can use fake tokens signed with a test key instead of calling Google, the configuration (`GOOGLE_CLIENT_ID` from the environment), and step-by-step setup notes for the Google Cloud Console.
+- **You set up once:** a Google Cloud project, the OAuth consent screen in testing mode with yourself as a test user, and a "Web application" OAuth client ID with `http://localhost:5180` as an authorised JavaScript origin. This flow needs **no client secret**. The client ID isn't secret, but it still comes from the environment so each environment can use its own.
+- **You learn:** OAuth 2.0 vs OpenID Connect; ID tokens vs access tokens; verifying a JWT someone else signed (public keys) vs one you signed yourself; why `sub` and not email identifies a Google user; the account pre-hijacking attack.
+
+### 11e - Seller approval
+
+- **You build (R32):**
+  - The seller-status moves on `User`, as guard clauses like `Auction.publish`: request (`NONE` or `REJECTED` → `PENDING`), approve and reject (`PENDING` only).
+  - `POST /api/v1/me/seller-request` for the signed-in user.
+  - `GET /api/v1/admin/seller-requests` (oldest first) plus approve and reject endpoints, for `ADMIN` only.
+  - `createAuction` refuses users who aren't `APPROVED` with `403 SELLER_NOT_APPROVED`.
+- **I prepare:**
+  - the `seller_status` column, with existing seed sellers set to `APPROVED`;
+  - `ADMIN`-only URL rules in the security config;
+  - a way to create the first admin without putting credentials in Git: the account whose email matches the `BIDDLY_BOOTSTRAP_ADMIN_EMAIL` environment variable is made `ADMIN` at startup;
+  - a "Become a seller" button and status, a small admin page, and **Create auction** shown only to approved sellers.
+- **You learn:** role checks (`hasRole("ADMIN")`) vs ownership checks (R1) vs state rules (R32); why the UI hiding a button is not security; how to bootstrap the first admin safely.
+
+**Why Google comes last:** after 11b and 11c the whole session machinery exists, so Google is just "a second way to prove who you are". It also keeps 11a-11c free of any Google setup.
+
+---
+
+## Challenge 11a - Register with email and password (Spring Boot / Spring Security)
+
+**Why:** Biddly has no accounts yet. The demo users came from seed data, and the browser just claims to be one of them. Registration is the first step: an email, a display name, and a password that the server stores safely.
+
+**File:** `backend/src/main/java/com/biddly/auth/AuthService.java`, method `register`. Its Javadoc lists the rules.
+
+**Ready for you (don't change unless you want to):**
+
+- **Spring Security** is added. `configuration/SecurityConfig.java` still lets every request through, so nothing that works today breaks; 11c locks it down. It also provides the `PasswordEncoder` bean (BCrypt, cost 10).
+- **Migration V4:** `users.role` (`USER` or `ADMIN`, default `USER`). `User` has a new constructor that takes the password hash, plus `getPasswordHash()` and `getRole()`.
+- **`UserRepository.existsByEmailIgnoreCase`.**
+- **`common.ConflictException(code, message)`**, which `GlobalExceptionHandler` turns into **409**. `BusinessRuleException` is still 422.
+- **`POST /api/v1/auth/register`** (`AuthController`) with `RegisterRequest` (name, email and password, checked by Bean Validation) and `AccountResponse` (`AccountResponse.from(user)`; it has no password field at all).
+- **Frontend:** a **Create account** link in the header and a register page at `/register`. The form checks the password length in bytes and that the two passwords match (`features/auth/registerForm.ts`, 4 tests). Server errors appear next to the right field: `EMAIL_TAKEN` under the email, `PASSWORD_TOO_LONG` under the password.
+
+**Tests:** remove `@Disabled("CHALLENGE 11a ...")` from:
+
+- `AuthServiceTest` (8 unit tests: a hash and never the password, a different salt each time, lower-case email, trimmed name, role `USER`, `EMAIL_TAKEN`, a lost race, and the 72-byte limit on both sides).
+- `AuthApiIntegrationTest` (3 tests over HTTP: create an account, a used email in another letter case, a password that's too long). Its fourth test, Bean Validation, is already enabled and must keep passing.
+- `RegistrationRaceIntegrationTest` (four sign-ups for one email at the same moment: one 201, three `409 EMAIL_TAKEN`, one account).
+
+**Run:** `cd backend; .\mvnw.cmd test -Dtest="AuthServiceTest,AuthApiIntegrationTest,RegistrationRaceIntegrationTest"`, then the full suite.
+
+**Try it:** restart the backend (the new library needs a full restart), open <http://localhost:5180/register> and create an account. Then look at what's actually stored:
+
+```powershell
+"SELECT id, email, left(password_hash, 7) AS hash_start, length(password_hash) AS hash_length, role FROM users;" | docker exec -i biddly-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
+
+### Acceptance criteria
+
+- `201` with the account (`id`, `displayName`, `email`, `role` `USER`, `createdAt`). The response never contains the password or its hash.
+- The email is stored in lower case; the display name without spaces around it.
+- The stored `password_hash` is a BCrypt hash (it starts with `$2`), and `passwordEncoder.matches(password, hash)` is true.
+- An email that already has an account, in any letter case: `409 EMAIL_TAKEN`, and nothing is saved.
+- A password over 72 bytes in UTF-8 (for example 25 `₹` signs: 25 characters, 75 bytes): `422 PASSWORD_TOO_LONG`, and nothing is saved.
+- Four sign-ups for the same email at the same moment: one `201` and three `409 EMAIL_TAKEN`. Never a `500`.
+
+### Learn first
+
+- **Sections 1-3 of the [authentication primer](learning/authentication-primer.md)**, which you've done.
+- **`PasswordEncoder`:** `encode(raw)` gives a new salted hash every time; `matches(raw, hash)` reads the salt back out of the hash. Why can't you just compare `encode(raw)` with the stored hash?
+- **Bytes vs characters:** `"₹".length()` is 1 in Java, but `"₹".getBytes(StandardCharsets.UTF_8).length` is 3. What does `BCryptPasswordEncoder.encode` do with more than 72 bytes?
+- **Unique index vs check-then-insert:** two requests can both pass `existsByEmailIgnoreCase` before either saves. What does Spring throw when PostgreSQL's unique index then refuses the second insert?
+- **`toLowerCase(Locale.ROOT)`:** why not plain `toLowerCase()`? (Look up "Turkish I".)
+
+### Questions to answer in your PR description
+
+1. The unique index already compares `lower(email)`. Why also store the email in lower case?
+2. Your service checks whether the email exists before saving. Why is the database's unique index still needed? And why is catching every `DataIntegrityViolationException` as `EMAIL_TAKEN` a little risky?
+3. `EMAIL_TAKEN` tells anyone whether an email has a Biddly account, yet sign-in (11b) will say only "Wrong email or password". Is that inconsistent? How do some sites avoid the leak on sign-up?
+4. Why count the password limit in bytes rather than characters? What would happen with 25 `₹` signs if you didn't check?
+5. `RegisterRequest` overrides `toString()`. Why? Name two other ways a password could end up somewhere it shouldn't.
+6. One BCrypt hash takes about 100 ms of CPU. What does that mean for someone sending thousands of requests to `/register`, and what protects the server?
+
+Hint 1
+
+About a dozen lines in this order: normalise the email and name, check the byte length, check the email, hash the password, save, and return `AccountResponse.from(saved)`.
+
+Hint 2
+
+`request.password().getBytes(StandardCharsets.UTF_8).length > 72`. Throw the `BusinessRuleException` before hashing, since hashing is the slow part.
+
+Hint 3
+
+If the race test gets 500s, read the backend log: which exception does `userRepository.save` throw when the unique index refuses the insert? With `IDENTITY` ids, Hibernate sends the `INSERT` immediately inside `save`, so you can catch it right there and throw your `ConflictException` instead.

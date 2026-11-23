@@ -37,6 +37,11 @@ public class GlobalExceptionHandler {
         return respond(HttpStatus.UNPROCESSABLE_CONTENT, ApiError.of(ex.getCode(), ex.getMessage(), now()));
     }
 
+    @ExceptionHandler(ConflictException.class)
+    ResponseEntity<ApiError> handleConflict(ConflictException ex) {
+        return respond(HttpStatus.CONFLICT, ApiError.of(ex.getCode(), ex.getMessage(), now()));
+    }
+
     @ExceptionHandler(OptimisticLockingFailureException.class)
     ResponseEntity<ApiError> handleOptimsiticLockingFailure(OptimisticLockingFailureException ex){
         return respond(HttpStatus.CONFLICT, ApiError.of("CONCURRENT_UPDATE", "Someone else updated this auction at the same moment. Refresh and try again.", now()));

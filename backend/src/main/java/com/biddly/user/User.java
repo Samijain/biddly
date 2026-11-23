@@ -15,8 +15,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * Minimal user for Milestone 0. Passwords, roles and sign-in arrive in Milestone 5.
- * The table is named "users" because "user" is a reserved word in PostgreSQL.
+ * A Biddly account. The table is named "users" because "user" is a reserved word in PostgreSQL.
+ * The password hash is null for the seeded demo users, and later for Google-only accounts (11d).
  */
 @Entity
 @Table(name = "users")
@@ -31,6 +31,13 @@ public class User {
 
     @Column(nullable = false)
     private String email;
+
+    @Column
+    private String passwordHash;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private Role role = Role.USER;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -47,9 +54,16 @@ public class User {
     protected User() {
     }
 
+    /** A user without a password, as in the seed data and tests that don't need sign-in. */
     public User(String displayName, String email) {
+        this(displayName, email, null);
+    }
+
+    /** A registered account (Challenge 11a). Takes the BCrypt hash, never the password itself. */
+    public User(String displayName, String email, String passwordHash) {
         this.displayName = displayName;
         this.email = email;
+        this.passwordHash = passwordHash;
     }
 
     public Long getId() {
@@ -62,6 +76,14 @@ public class User {
 
     public String getEmail() {
         return email;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public Role getRole() {
+        return role;
     }
 
     public UserStatus getStatus() {

@@ -7,6 +7,7 @@ import { CreateAuctionPage } from '../pages/CreateAuctionPage'
 import { EditAuctionPage } from '../pages/EditAuctionPage'
 import { HomePage } from '../pages/HomePage'
 import { NotFoundPage } from '../pages/NotFoundPage'
+import { RegisterPage } from '../pages/RegisterPage'
 
 export const router = createBrowserRouter([
   {
@@ -17,6 +18,7 @@ export const router = createBrowserRouter([
       { path: 'auctions/new', element: <CreateAuctionPage /> },
       { path: 'auctions/:auctionId', element: <AuctionDetailsPage /> },
       { path: 'auctions/:auctionId/edit', element: <EditAuctionPage /> },
+      { path: 'register', element: <RegisterPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
