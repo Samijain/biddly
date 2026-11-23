@@ -86,6 +86,10 @@ sequenceDiagram
     C-->>B: 200 JSON
 ```
 
+## Authentication and authorization
+
+Sign-in, tokens (BCrypt, HS256 JWTs, rotating refresh cookies) and what each endpoint requires are described end to end, with diagrams, in [authentication.md](authentication.md).
+
 ## Deployment target (Milestones 9-12)
 
 ```mermaid

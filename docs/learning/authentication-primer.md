@@ -1,6 +1,6 @@
 # Authentication primer for Biddly
 
-What to learn before Challenge 11, in the order you'll need it. Each step lists the questions you should be able to answer and one or two good sources. Steps 1-3 matter before 11a, 4-5 before 11b and 11c, and 6 before 11d.
+What to learn before Challenge 11, in the order you'll need it. Each step lists the questions you should be able to answer and one or two good sources. Steps 1-3 matter before 11a, 4-5 before 11b and 11c, and 6 before 11d. How Biddly actually does it, with diagrams, is in [authentication.md](../authentication.md).
 
 ## 1. The vocabulary (about 1 hour)
 

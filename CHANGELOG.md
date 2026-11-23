@@ -6,6 +6,10 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 
 ## [Unreleased]
 
+### Added - Authentication reference (2026-11-24)
+
+- `docs/authentication.md`: how sign-in and access work end to end, with diagrams. It covers the algorithms (BCrypt with salt, HS256 JWT, SHA-256 refresh-token hashes, `SecureRandom`), every flow (register, sign in, request checks, refresh with reuse detection, page load, sign out), threats and defences, known trade-offs, and what's protected today. Linked from `architecture.md`, the primer and `AGENTS.md`, and updated with each auth challenge.
+
 ### Added - Challenge 11b: sign in, tokens and sign out (2026-11-24)
 
 - `AuthService.login`:

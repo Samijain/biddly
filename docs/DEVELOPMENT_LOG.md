@@ -1038,3 +1038,13 @@ You implemented `AuthService.login`, `SessionService.refresh` and `SessionServic
 The Q3 and Q4 trade-offs are now recorded in `business-rules.md`.
 
 **Results:** backend 142/142 with nothing skipped (34 for 11b); frontend 29/29. Next is 11c: protect the rest of the API, take the seller and bidder from the token, and add "My bids".
+---
+
+## Session 30 - 2026-11-24 - Authentication reference
+
+You asked for one place that explains sign-in and access end to end, with the algorithms named. I wrote [authentication.md](authentication.md):
+- **Diagrams:** the big picture, plus a sequence diagram for each flow: register, sign in, checking a request, refresh, reuse detection, page load and sign out. There's also a state diagram for one refresh-token row.
+- **The algorithms:** BCrypt with its salt and cost, HS256 JWTs, SHA-256 refresh-token hashes and `SecureRandom`.
+- **Reference tables:** threats and defences, known trade-offs, what's protected today, and where the code is.
+
+It describes the code as it is, not the plan. It ends with what each later challenge (11c, 11d, 11e) has to add to it, and `AGENTS.md` now asks for it to be updated whenever authentication or authorization changes.

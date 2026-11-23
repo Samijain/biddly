@@ -77,6 +77,7 @@ For every meaningful change:
 - Add a short entry under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md) (Keep a Changelog format).
 - Update [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/CHALLENGES.md](docs/CHALLENGES.md) status when a milestone or challenge changes.
 - Keep user-story IDs (US-xx) and rule IDs (Rxx) consistent across the PRD, user stories and business rules.
+- When sign-in, tokens, roles or access rules change, update [docs/authentication.md](docs/authentication.md) (diagrams, algorithms, what's protected).
 
 ## Before finishing a change
 
