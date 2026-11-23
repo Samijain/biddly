@@ -6,6 +6,38 @@ The *why* and *how* behind each change is in [docs/DEVELOPMENT_LOG.md](docs/DEVE
 
 ## [Unreleased]
 
+### Added - Challenge 11b: sign in, tokens and sign out (2026-11-24)
+
+- `AuthService.login`:
+  - an unknown email, a wrong password and an account without a password all get one `401 INVALID_CREDENTIALS`, "Wrong email or password.";
+  - a suspended account gets `403 ACCOUNT_SUSPENDED`, checked only after the password matched;
+  - otherwise a session starts.
+- `SessionService.refresh` rotates the refresh token. A missing, unknown or expired token gets `401 INVALID_REFRESH_TOKEN`. A reused (already revoked) token ends every session of that user, and `noRollbackFor` keeps those revocations despite the 401.
+- `SessionService.logout` revokes the token and never fails.
+- All Challenge 11b tests enabled: 142/142 backend tests. Rule R28 is done; US-30 is done.
+- Known trade-offs recorded in `business-rules.md`: sign-in timing reveals registered emails, and two tabs refreshing at once sign the user out.
+
+### Added - Challenge 11b starter: sign in, tokens and sign out (2026-11-23)
+
+- Migration `V5__create_refresh_tokens.sql`: refresh tokens stored only as SHA-256 hashes, with expiry and revocation. `RefreshToken` entity and `RefreshTokenRepository`: a locking lookup by hash, and "revoke all of a user's sessions".
+- JWT access tokens: HS256, 15 minutes, signed with `JWT_SECRET`. There's no default outside dev and test, and the app refuses a key shorter than 32 bytes. `JwtService`, `JwtConfig`, and Spring Security's OAuth 2 resource server checking the token on `GET /api/v1/auth/me`.
+- `SessionService.issue` (ready) and the stubs `SessionService.refresh` and `logout`.
+- The stub `AuthService.login`, with `LoginRequest` (its `toString` hides the password), `TokenResponse`, and `UserRepository.findByEmailIgnoreCase`.
+- `UnauthorizedException` (401) and `ForbiddenException` (403) in `GlobalExceptionHandler`.
+- `POST /api/v1/auth/login`, `/refresh` and `/logout`, using the `biddly_refresh` cookie: `HttpOnly`, `SameSite=Strict`, `Path=/api/v1/auth`, 14 days, `Secure` outside dev.
+- Dev seed: the demo users have the password `biddly-demo` (dev only).
+- Tests:
+  - Disabled: `AuthServiceTest.Login` (7), `SessionServiceTest.Refresh` (5) and `.Logout` (2), and 7 in `AuthSessionIntegrationTest`.
+  - Enabled: 2 for `issue`, and 3 for `/auth/me` (no token, an expired token, an edited token).
+- Frontend:
+  - a sign-in page at `/sign-in`;
+  - the header shows the signed-in user and **Sign out**;
+  - the access token lives in memory only, and is sent as `Authorization: Bearer`, but never to the auth endpoints;
+  - the session is restored on page load, and the token refreshes a minute before it expires;
+  - only one refresh runs at a time (`session.ts`, 6 tests);
+  - after registering, the next step is **Sign in**.
+- Backend 140 tests pass with 21 skipped; frontend 29/29.
+
 ### Added - Challenge 11a: register with email and password (2026-11-23)
 
 - `AuthService.register`:

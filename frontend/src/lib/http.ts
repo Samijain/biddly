@@ -1,3 +1,5 @@
+import { getAccessToken } from './accessToken'
+
 /** Mirrors com.biddly.common.ApiError on the backend. */
 export interface ApiErrorBody {
   code: string
@@ -24,16 +26,31 @@ function isApiErrorBody(value: unknown): value is ApiErrorBody {
   return typeof value === 'object' && value !== null && 'code' in value && 'message' in value
 }
 
+export interface HttpInit extends RequestInit {
+  /**
+   * Leave out the access token. The auth endpoints use the refresh cookie instead, and an expired token in the
+   * header would make Spring Security answer 401 before the refresh endpoint even runs.
+   */
+  anonymous?: boolean
+}
+
 /**
  * A thin wrapper around fetch. fetch only rejects on network failure, never on 4xx/5xx,
  * so HTTP errors have to be turned into exceptions here.
  */
-export async function http<T>(path: string, init?: RequestInit): Promise<T> {
+export async function http<T>(path: string, init?: HttpInit): Promise<T> {
+  const { anonymous, ...requestInit } = init ?? {}
+  const token = anonymous ? null : getAccessToken()
   let response: Response
   try {
     response = await fetch(path, {
-      ...init,
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...init?.headers },
+      ...requestInit,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...requestInit.headers,
+      },
     })
   } catch {
     throw new ApiError(0, {

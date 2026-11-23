@@ -8,6 +8,11 @@ INSERT INTO users (display_name, email) VALUES
     ('Meera Bidder', 'meera@biddly.dev')
 ON CONFLICT ((lower(email))) DO NOTHING;
 
+-- Challenge 11b: the demo users can sign in with the password "biddly-demo".
+-- A known demo password for fake local accounts, never used outside the dev profile.
+UPDATE users SET password_hash = '$2a$10$fHxZO5tDTUbETKIiPv32k.kJuPKJCSjaDr4kxvIU95zgTlpiSnzci'
+WHERE lower(email) IN ('asha@biddly.dev', 'rohan@biddly.dev', 'meera@biddly.dev') AND password_hash IS NULL;
+
 INSERT INTO auctions (seller_id, category_id, title, description, cover_image_url,
                       starting_price, current_price, minimum_increment,
                       start_time, end_time, status)

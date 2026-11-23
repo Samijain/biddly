@@ -57,10 +57,10 @@ export function RegisterPage() {
           {account ? (
             <Stack spacing={3}>
               <Alert severity="success">
-                Welcome, {account.displayName}! Your account for {account.email} is ready. Signing in arrives in Challenge 11b.
+                Welcome, {account.displayName}! Your account for {account.email} is ready.
               </Alert>
-              <Button variant="contained" component={NavLink} to="/auctions" sx={{ alignSelf: 'flex-start' }}>
-                Browse live auctions
+              <Button variant="contained" component={NavLink} to="/sign-in" sx={{ alignSelf: 'flex-start' }}>
+                Sign in
               </Button>
             </Stack>
           ) : (

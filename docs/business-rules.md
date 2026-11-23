@@ -52,13 +52,17 @@ stateDiagram-v2
 | # | Rule | Enforced by | Status |
 |---|---|---|---|
 | R27 | One account per email, compared case-insensitively. Registering a used email gives `409 EMAIL_TAKEN` | `AuthService.register` (stores the email in lower case, checks first, and turns a lost race on `uq_users_email_lower` into the same 409) (Challenge 11a) | ✅ |
-| R28 | A password is at least 8 characters and at most 72 bytes in UTF-8 (BCrypt's limit; `422 PASSWORD_TOO_LONG`), and is stored only as a BCrypt hash. A failed sign-in says "Wrong email or password" whether the email exists or not | `RegisterRequest`, `AuthService.register` with BCrypt (Challenge 11a, done); the sign-in message comes in 11b | 🟡 |
+| R28 | A password is at least 8 characters and at most 72 bytes in UTF-8 (BCrypt's limit; `422 PASSWORD_TOO_LONG`), and is stored only as a BCrypt hash. A failed sign-in says "Wrong email or password" whether the email exists or not | `RegisterRequest`, `AuthService.register` with BCrypt (Challenge 11a, done); `AuthService.login` (Challenge 11b, done: `401 INVALID_CREDENTIALS`) | ✅ |
 | R29 | Every write needs a signed-in user (`401` otherwise). The seller and the bidder are the signed-in user, never ids from the request body | Spring Security filter chain; `sellerId` and `bidderId` leave the request DTOs (Challenge 11c) | ⏳ |
 | R30 | A Google sign-in is accepted only with a Google ID token whose signature, issuer, audience (our client ID) and expiry check out, and whose email is verified. The account is found by Google's account ID (`sub`), never by email alone | Google token verifier, `users.google_subject` (Challenge 11d) | ⏳ |
 | R31 | Google sign-in never takes over an existing password account with the same email: it gets `409 ACCOUNT_EXISTS` ("sign in with your password"). See Product decision 7 | Google sign-in service (Challenge 11d) | ⏳ |
 | R32 | Only a user whose seller status is `APPROVED` can create auctions (`403 SELLER_NOT_APPROVED` otherwise). A user can request seller access (`NONE` or `REJECTED` → `PENDING`); only an `ADMIN` can approve or reject a `PENDING` request. Bidding needs no approval | `User` seller-status methods, `AuctionService.createAuction`, admin endpoints (Challenge 11e) | ⏳ |
 
 **Known trade-off: sign-up reveals which emails have accounts.** `409 EMAIL_TAKEN` tells anyone that an email is registered, so the vague sign-in message (R28) only partly hides it. The full fix is email verification: sign-up always answers "check your inbox", and the email either finishes registration or says "you already have an account". That also stops account pre-hijacking. Biddly can't send email yet, so this is accepted for now. Rate limiting (Milestone 7) will slow down anyone testing emails in bulk.
+
+**Known trade-off: sign-in timing.** An unknown email answers in about 1 ms, because BCrypt never runs; a wrong password takes about 100 ms. Timing the answers reveals which emails have accounts, even though the message is the same. The fix is to run `matches` against a dummy hash when no user is found. It's left out while sign-up leaks the same thing through `EMAIL_TAKEN`, and belongs with email verification.
+
+**Known trade-off: two tabs refreshing at once.** Both send the same refresh cookie; the second one finds the token already rotated, which looks exactly like theft, so every session ends. In one tab the frontend allows only one refresh at a time, but separate tabs don't share memory. A short grace period after rotation, or tabs taking turns (the Web Locks API), would fix it. It's rare enough to accept for now.
 
 ## Concurrency: the most important scenario
 

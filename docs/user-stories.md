@@ -70,8 +70,8 @@ As a bidder, I want to save auctions to a watchlist so that I can come back befo
 **US-30 Register / sign in / sign out** (M5, Challenges 11a and 11b)
 As a visitor, I want to create an account with my email and a password so that I can bid and sell.
 - AC ✅ (Challenge 11a): Registering with an email that's already used gives a clear error (R27). The password is never stored, only its BCrypt hash (R28).
-- AC: A wrong email and a wrong password get the same message, so nobody can test which emails have accounts (R28).
-- AC: I stay signed in after a page refresh (refresh cookie). Signing out ends the session on the server too.
+- AC ✅ (Challenge 11b): A wrong email and a wrong password get the same message, so nobody can test which emails have accounts (R28).
+- AC ✅ (Challenge 11b): I stay signed in after a page refresh (refresh cookie). Signing out ends the session on the server too.
 
 **US-31 Protected pages redirect to sign-in** (M5, Challenge 11c)
 - AC: Creating, editing, publishing and cancelling auctions, and bidding, need a signed-in user. The seller and the bidder come from the token, never from the request body (R29).

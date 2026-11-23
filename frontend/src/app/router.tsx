@@ -8,6 +8,7 @@ import { EditAuctionPage } from '../pages/EditAuctionPage'
 import { HomePage } from '../pages/HomePage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { RegisterPage } from '../pages/RegisterPage'
+import { SignInPage } from '../pages/SignInPage'
 
 export const router = createBrowserRouter([
   {
@@ -19,6 +20,7 @@ export const router = createBrowserRouter([
       { path: 'auctions/:auctionId', element: <AuctionDetailsPage /> },
       { path: 'auctions/:auctionId/edit', element: <EditAuctionPage /> },
       { path: 'register', element: <RegisterPage /> },
+      { path: 'sign-in', element: <SignInPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

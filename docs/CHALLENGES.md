@@ -16,7 +16,7 @@ Ask for a hint whenever you are stuck, and ask for a code review when you are fi
 | 9 | Auction scheduler: start and close auctions on time (`Auction.start`, `Auction.complete`, `AuctionLifecycleService.advance`) | Spring Boot / JPA | ✅ Done (2026-11-13): 81/81 backend tests, 11 dev auctions moved in one live run |
 | 10 | Idempotent bids: a retry never places a second bid (`BidService.placeBid`) | Spring Boot / JPA / PostgreSQL | ✅ Done (2026-11-13): 93/93 backend tests, six simultaneous copies give one bid |
 | 11a | Register with email and password (`AuthService.register`) | Spring Boot / Spring Security | ✅ Done (2026-11-23): 114/114 backend tests, including four simultaneous sign-ups for one email |
-| 11b | Sign in, JWT access token, refresh cookie, sign out | Spring Boot / Spring Security | ⏳ Planned |
+| 11b | Sign in, JWT access token, refresh cookie, sign out (`AuthService.login`, `SessionService.refresh`, `SessionService.logout`) | Spring Boot / Spring Security | ✅ Done (2026-11-24): 142/142 backend tests, including a reused refresh token ending every session |
 | 11c | Protect the API: the signed-in user acts, ownership (R1), "My bids" | Spring Boot / Spring Security / React | ⏳ Planned |
 | 11d | Sign in with Google (verify Google's ID token) | Spring Boot / OpenID Connect / React | ⏳ Planned |
 | 11e | Seller approval: request, admin approves, only approved sellers create auctions | Spring Boot / Spring Security / React | ⏳ Planned |
@@ -241,7 +241,7 @@ Sellers make typos. While an auction is a `DRAFT`, nobody can see it or bid on i
 3. If `categoryId` is given, the category must exist -> `ResourceNotFoundException("Category", categoryId)`
 4. Call `auction.updateDetails(...)` and return `auctionMapper.toResponse(...)`. No `save`: a test checks that.
 
-**Don't copy steps 2 and 3 from `createAuction`.** Move them into private methods, and make both `createAuction` and `updateAuction` call them. The Challenge 2 tests keep passing if the refactor is right.
+**Don't copy steps 2 and 3 from** `createAuction`**.** Move them into private methods, and make both `createAuction` and `updateAuction` call them. The Challenge 2 tests keep passing if the refactor is right.
 
 When it works, open your draft auction 8 ("Shanti Dhara Chandrapbhu Bhagwan"). Its end time passed on 2 November, so publishing it fails with `AUCTION_ALREADY_ENDED`. Click **Edit**, give it new start and end times, save, then publish it. It finally reaches **Live auctions**.
 
@@ -250,7 +250,7 @@ When it works, open your draft auction 8 ("Shanti Dhara Chandrapbhu Bhagwan"). I
 - **PUT vs PATCH:** PUT replaces the whole resource, so a missing optional field means "clear it". PATCH changes only the fields that are sent. Which one does `clearsOptionalFieldsThatAreSentAsNull` test?
 - **Extract Method refactoring and DRY:** one rule, one place. What happens later if the time rule changes and it lives in two places?
 - **Where each check belongs:** Bean Validation on the request record (shape of one field), the service (needs the clock or the database), the entity (its own state). Sort this challenge's rules into those three.
-- **Lost updates and `@Version`:** two tabs open the same draft and both save. The second silently overwrites the first. Read how optimistic locking would turn that into an error.
+- **Lost updates and** `@Version`**:** two tabs open the same draft and both save. The second silently overwrites the first. Read how optimistic locking would turn that into an error.
 - **Order of checks:** which error is most useful to the user when a request breaks two rules at once?
 
 ### Questions to answer in your PR description
@@ -324,7 +324,7 @@ When it works, open live auction 16 ("Selling my iphone", open until 15 November
 - **Aggregates:** the auction guards its own price, and a `Bid` is a record of what happened. Why is `acceptBid` on `Auction` and not on `Bid`?
 - **Entity identity:** two Java objects can represent the same database row. When is `==` on two `User`s true, and when is it false even though they're the same user?
 - **Hibernate proxies:** `seller` is `LAZY`, so it may be a proxy subclass. What does `getId()` on a proxy do, and why doesn't it hit the database?
-- **`BigDecimal` comparison:** why does `new BigDecimal("1000.0").equals(new BigDecimal("1000.00"))` return `false`? Which method should you use instead?
+- `BigDecimal` **comparison:** why does `new BigDecimal("1000.0").equals(new BigDecimal("1000.00"))` return `false`? Which method should you use instead?
 - **Transactions:** if `bidRepository.save` throws after `acceptBid` changed the price, what happens to the price change?
 
 ### Questions to answer in your PR description
@@ -397,8 +397,8 @@ When both parts pass, the full suite should be 59/59.
 ### Learn first
 
 - **Optimistic vs pessimistic:** "detect the collision and fail" vs "prevent the collision by queueing". What does each cost when 2 people bid? When 500 do?
-- **What `@Version` does in SQL:** watch the `UPDATE` and its `WHERE version = ?`. Why does Hibernate know the update failed?
-- **`SELECT ... FOR UPDATE` in PostgreSQL:** which rows does it lock, and until when? What happens to a second transaction that asks for the same row?
+- **What** `@Version` **does in SQL:** watch the `UPDATE` and its `WHERE version = ?`. Why does Hibernate know the update failed?
+- `SELECT ... FOR UPDATE` **in PostgreSQL:** which rows does it lock, and until when? What happens to a second transaction that asks for the same row?
 - **Transaction boundaries:** the optimistic exception is thrown at **commit**, after `placeBid` has returned. Why can't a `try/catch` inside `placeBid` catch it?
 - **Deadlocks and lock timeouts:** what would happen if one transaction locked auction A then B, and another locked B then A?
 
@@ -464,7 +464,7 @@ If part 2's test still sees 409s, check that `placeBid` really calls the new met
 
 ### Learn first
 
-- **`@Scheduled` and `@EnableScheduling`:** `fixedDelay` vs `fixedRate` vs `cron`. Which thread runs the job, and what happens if one run takes longer than the delay?
+- `@Scheduled` **and** `@EnableScheduling`**:** `fixedDelay` vs `fixedRate` vs `cron`. Which thread runs the job, and what happens if one run takes longer than the delay?
 - **Spring Data derived queries:** how `findByStatusAndStartTimeLessThanEqual` turns into `WHERE status = ? AND start_time <= ?`. Why is it a list, not an `Optional`?
 - **Dirty checking inside a transaction:** why `advance()` needs no `save` call for entities it loaded.
 - **Hibernate auto-flush:** before running the second query, Hibernate writes pending changes so the query sees them. Why does that matter for an auction that starts and completes in the same run?
@@ -501,9 +501,9 @@ In `advance()`, keep the two lists in variables. `forEach(a -> a.start(now))` ch
 **Ready for you (don't change unless you want to):**
 
 - **Database:** migration `V3__add_bid_idempotency_key.sql` adds `bids.idempotency_key` (UUID) with a unique index per bidder.
-- **`Bid`:** a new constructor takes the key; `getIdempotencyKey()` reads it.
-- **`BidRepository.findByBidderIdAndIdempotencyKey`:** finds the earlier bid for a key.
-- **`BidController`:** reads the optional `Idempotency-Key` header and passes it to `placeBid`. A malformed key gets 400 `INVALID_PARAMETER`.
+- `Bid`**:** a new constructor takes the key; `getIdempotencyKey()` reads it.
+- `BidRepository.findByBidderIdAndIdempotencyKey`**:** finds the earlier bid for a key.
+- `BidController`**:** reads the optional `Idempotency-Key` header and passes it to `placeBid`. A malformed key gets 400 `INVALID_PARAMETER`.
 - **Frontend:**
   - every bid attempt sends a fresh UUID;
   - pressing **Place bid** again for the same bidder and amount reuses the key (`nextAttempt` in `features/bids/bidAttempt.ts`);
@@ -532,7 +532,7 @@ Four tests are already enabled and must keep passing: no key means no lookup, ke
 - **Retries are the client's normal case:** a timeout doesn't tell you whether the server did the work. Why can't the client just check first?
 - **Read committed in PostgreSQL:** when does one transaction see a row another transaction just inserted? Before or after it commits?
 - **Unique indexes as a safety net:** partial unique indexes (`WHERE ... IS NOT NULL`), and what Spring throws when one is violated (`DataIntegrityViolationException`).
-- **Spring Data derived queries with `null`:** what SQL does `findByBidderIdAndIdempotencyKey(2L, null)` send?
+- **Spring Data derived queries with** `null`**:** what SQL does `findByBidderIdAndIdempotencyKey(2L, null)` send?
 
 ### Questions to answer in your PR description
 
@@ -583,7 +583,7 @@ Each part gets a full brief, starter code and disabled tests when it starts, lik
 
 - **You build:** `POST /auth/login` checks the password and issues a session: a **15-minute access JWT** signed by Biddly, plus a **refresh token** (a long random string) in an `HttpOnly` cookie, stored in `refresh_tokens` only as a hash. `POST /auth/refresh` swaps an old refresh token for a new one (rotation). `POST /auth/logout` revokes it. `GET /auth/me` returns the signed-in user.
 - **The key design point:** "issue a session for this user" is **one method**. Google sign-in in 11d calls the same method.
-- **I prepare:** the JWT signing key from an environment variable (never in Git), the cookie settings, the sign-in page, and an auth context in React that keeps the access token in memory.
+- **I prepare:** the JWT signing key from an environment variable (never in Git), the cookie settings, the sign-in page, and a session module in React that keeps the access token in memory. Full brief: [Challenge 11b](#challenge-11b---sign-in-tokens-and-sign-out-spring-boot--spring-security) below.
 - **You learn:** what is inside a JWT and why it is signed but not encrypted; why access tokens are short-lived; why the refresh token goes in an `HttpOnly` cookie rather than `localStorage`; rotation and reuse detection.
 
 ### 11c - Protect the API
@@ -597,7 +597,7 @@ Each part gets a full brief, starter code and disabled tests when it starts, lik
 - **How it works:** the frontend shows Google's **Sign in with Google** button. Google signs the user in and gives the browser an **ID token**, a JWT signed by Google that says who the user is. The frontend posts it to `POST /api/v1/auth/google`. The backend verifies it and then calls 11b's "issue a session" method.
 - **You build:** the verification and account rules:
   - **Verify (R30):** Google's signature (public keys from Google's JWKS URL), issuer `https://accounts.google.com`, audience = **our** client ID, not expired, `email_verified` is true.
-  - **Find the account by Google's `sub`**, the account ID that never changes. Found: sign in.
+  - **Find the account by Google's** `sub`, the account ID that never changes. Found: sign in.
   - **Not found, and no account has this email:** create one with the Google name and email, and no password.
   - **Not found, but the email already has a password account:** refuse with `409 ACCOUNT_EXISTS` (R31).
 - **I prepare:** the Google button in the frontend, a `GoogleTokenVerifier` interface so tests can use fake tokens signed with a test key instead of calling Google, the configuration (`GOOGLE_CLIENT_ID` from the environment), and step-by-step setup notes for the Google Cloud Console.
@@ -632,9 +632,9 @@ Each part gets a full brief, starter code and disabled tests when it starts, lik
 
 - **Spring Security** is added. `configuration/SecurityConfig.java` still lets every request through, so nothing that works today breaks; 11c locks it down. It also provides the `PasswordEncoder` bean (BCrypt, cost 10).
 - **Migration V4:** `users.role` (`USER` or `ADMIN`, default `USER`). `User` has a new constructor that takes the password hash, plus `getPasswordHash()` and `getRole()`.
-- **`UserRepository.existsByEmailIgnoreCase`.**
-- **`common.ConflictException(code, message)`**, which `GlobalExceptionHandler` turns into **409**. `BusinessRuleException` is still 422.
-- **`POST /api/v1/auth/register`** (`AuthController`) with `RegisterRequest` (name, email and password, checked by Bean Validation) and `AccountResponse` (`AccountResponse.from(user)`; it has no password field at all).
+- `UserRepository.existsByEmailIgnoreCase`**.**
+- `common.ConflictException(code, message)`, which `GlobalExceptionHandler` turns into **409**. `BusinessRuleException` is still 422.
+- `POST /api/v1/auth/register` (`AuthController`) with `RegisterRequest` (name, email and password, checked by Bean Validation) and `AccountResponse` (`AccountResponse.from(user)`; it has no password field at all).
 - **Frontend:** a **Create account** link in the header and a register page at `/register`. The form checks the password length in bytes and that the two passwords match (`features/auth/registerForm.ts`, 4 tests). Server errors appear next to the right field: `EMAIL_TAKEN` under the email, `PASSWORD_TOO_LONG` under the password.
 
 **Tests:** remove `@Disabled("CHALLENGE 11a ...")` from:
@@ -663,10 +663,10 @@ Each part gets a full brief, starter code and disabled tests when it starts, lik
 ### Learn first
 
 - **Sections 1-3 of the [authentication primer](learning/authentication-primer.md)**, which you've done.
-- **`PasswordEncoder`:** `encode(raw)` gives a new salted hash every time; `matches(raw, hash)` reads the salt back out of the hash. Why can't you just compare `encode(raw)` with the stored hash?
+- `PasswordEncoder`**:** `encode(raw)` gives a new salted hash every time; `matches(raw, hash)` reads the salt back out of the hash. Why can't you just compare `encode(raw)` with the stored hash?
 - **Bytes vs characters:** `"₹".length()` is 1 in Java, but `"₹".getBytes(StandardCharsets.UTF_8).length` is 3. What does `BCryptPasswordEncoder.encode` do with more than 72 bytes?
 - **Unique index vs check-then-insert:** two requests can both pass `existsByEmailIgnoreCase` before either saves. What does Spring throw when PostgreSQL's unique index then refuses the second insert?
-- **`toLowerCase(Locale.ROOT)`:** why not plain `toLowerCase()`? (Look up "Turkish I".)
+- `toLowerCase(Locale.ROOT)`**:** why not plain `toLowerCase()`? (Look up "Turkish I".)
 
 ### Questions to answer in your PR description
 
@@ -688,3 +688,98 @@ Hint 2
 Hint 3
 
 If the race test gets 500s, read the backend log: which exception does `userRepository.save` throw when the unique index refuses the insert? With `IDENTITY` ids, Hibernate sends the `INSERT` immediately inside `save`, so you can catch it right there and throw your `ConflictException` instead.
+
+---
+
+## Challenge 11b - Sign in, tokens and sign out (Spring Boot / Spring Security)
+
+**Why:** after 11a people can create accounts, but nobody can prove they own one. Signing in gives the browser two things: a **15-minute access token** (a JWT that Biddly signs, sent with each request) and a **14-day refresh token** in an `HttpOnly` cookie, which gets a new access token without asking for the password again.
+
+**Files:**
+
+- `backend/src/main/java/com/biddly/auth/AuthService.java`, method `login`.
+- `backend/src/main/java/com/biddly/auth/SessionService.java`, methods `refresh` and `logout`.
+
+Their Javadoc lists the rules. Leave `register` as it is.
+
+**Ready for you (don't change unless you want to):**
+
+- **Migration V5:** the `refresh_tokens` table. It holds only the **SHA-256 hash** of each token, plus when it was created, when it expires and when it was revoked. Your dev database already has it.
+- `RefreshToken` entity with `isRevoked()`, `isExpired(now)` and `revoke(now)`. `RefreshTokenRepository`:
+  - `findByTokenHashForUpdate(hash)` locks the row, so two refreshes with the same token queue up;
+  - `revokeAllForUser(userId, now)` ends every session of a user.
+- `TokenHasher.sha256(raw)`: hash a token from the cookie this way before you look it up.
+- `SessionService.issue(user)`: creates and stores a new refresh token and signs an access token. Password sign-in calls it now; Google sign-in (11d) will call it too.
+- `JwtService` **and** `JwtConfig`**:** HS256 signing with the key from `JWT_SECRET`. The key must be at least 32 bytes, or the app refuses to start. Dev and test have their own public, dev-only keys; production has no default.
+- `UnauthorizedException` **(401) and** `ForbiddenException` **(403)**, both handled by `GlobalExceptionHandler`. `UserRepository.findByEmailIgnoreCase`.
+- `AuthController`**:**
+  - `POST /api/v1/auth/login`, `/refresh` and `/logout`;
+  - `GET /api/v1/auth/me`, which Spring Security protects: it needs a valid access token;
+  - the `biddly_refresh` cookie: `HttpOnly`, `SameSite=Strict`, `Path=/api/v1/auth`, `Secure` outside dev.
+- **Dev seed:** Asha, Rohan and Meera now have the demo password `biddly-demo`. It's public on purpose and exists only in the dev seed.
+- **Frontend:**
+  - a **Sign in** page at `/sign-in`;
+  - the header shows your name and **Sign out** once you're signed in;
+  - the access token lives only in memory (`lib/accessToken.ts`) and goes out as `Authorization: Bearer ...`;
+  - a page load restores the session through the cookie, and the token refreshes itself a minute before it expires;
+  - only one refresh runs at a time (`features/auth/session.ts`, 6 tests). Otherwise React's StrictMode would refresh twice, and your reuse detection would sign you out.
+
+**Tests:** remove `@Disabled("CHALLENGE 11b ...")` from:
+
+- `AuthServiceTest.Login` (7 unit tests): the right password starts a session. A wrong password, an unknown email, an account without a password and a 75-byte password all get the same 401. A suspended account gets 403, but only with the right password.
+- `SessionServiceTest.Refresh` (5) and `SessionServiceTest.Logout` (2): rotation; a missing, unknown or expired token; a reused token ends every session; sign-out never fails.
+- `AuthSessionIntegrationTest` (7 tests over HTTP, with the real cookie and database). Its other 3 tests check `/auth/me` and are already enabled; they must keep passing.
+
+**Run:** `cd backend; .\mvnw.cmd test -Dtest="AuthServiceTest,SessionServiceTest,AuthSessionIntegrationTest"`, then the full suite.
+
+**Try it:** restart the backend (there's a new library), open <http://localhost:5180/sign-in> and sign in as `asha@biddly.dev` with `biddly-demo`. Then:
+
+- In DevTools > Application > Cookies, find `biddly_refresh`. Can you read it from the Console with `document.cookie`?
+- Copy the access token from the `/login` response in the Network tab and paste it into <https://jwt.io>. Which claims can you read without the key?
+- Reload the page: you stay signed in. Sign out, then reload: you don't.
+- See what the database keeps:
+
+```powershell
+"SELECT id, user_id, left(token_hash, 12) AS hash_start, expires_at, revoked_at FROM refresh_tokens ORDER BY id;" | docker exec -i biddly-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
+
+### Acceptance criteria
+
+- **Sign in:** `200` with `accessToken`, `tokenType` `Bearer`, `expiresAt` and the `account`, plus the `biddly_refresh` cookie. The refresh token is never in the response body.
+- The email matches in any letter case.
+- **One vague answer:** unknown email, wrong password or an account with no password all get `401 INVALID_CREDENTIALS`, "Wrong email or password.", and no cookie.
+- **Suspended:** the right password on a `SUSPENDED` account gets `403 ACCOUNT_SUSPENDED` and no session. A wrong password still gets the vague `401`.
+- **Refresh:**
+  - `200` with a new access token and a **new** cookie, and the old refresh token never works again;
+  - a missing, unknown or expired token gets `401 INVALID_REFRESH_TOKEN`.
+- **Reuse:** presenting an already-rotated token gets the same `401` **and** revokes every session of that user, including the newest one. The revocations stay in the database even though the request fails.
+- **Sign out:** always `204`, the token is revoked, and the cookie is deleted (`Max-Age=0`), even with no cookie at all.
+
+### Learn first
+
+- **Sections 4 and 5 of the [authentication primer](learning/authentication-primer.md)**, which you've done.
+- `PasswordEncoder.matches(raw, hash)`**:** what does it return when the hash is `null`, or the password is over 72 bytes? Try both in a unit test rather than guessing. Only `encode` throws for the length.
+- `@Transactional` **rollback rules:** by default a `RuntimeException` rolls back the whole transaction. Read about `noRollbackFor`. Which of your methods writes to the database **and** then throws?
+- `Optional`**:** `findByEmailIgnoreCase` and `findByTokenHashForUpdate` return one. Use `orElseThrow` rather than `get()`.
+- **Pessimistic locks again (Challenge 8):** why must two refreshes of the same token wait for each other?
+
+### Questions to answer in your PR description
+
+1. Passwords are hashed with slow BCrypt, but refresh tokens with fast SHA-256. Why is that safe for refresh tokens and not for passwords?
+2. Your reuse check revokes every session and then throws a 401. What happened to those revocations before you changed the transaction settings, and why?
+3. A user has Biddly open in two tabs, and both refresh at the same moment with the same cookie. What happens with your reuse detection? How could a real system avoid signing them out (a short grace period, for example)?
+4. An unknown email skips BCrypt, so it answers in about 1 ms, while a wrong password takes about 100 ms. What could an attacker learn from that, and how could you close the gap?
+5. `/refresh` uses only the cookie, and the browser sends cookies by itself. What stops another website from calling it (CSRF)? Why does our CSRF protection being switched off not hurt here?
+6. Why is the access token kept in memory and sent as a header, rather than put in a cookie too? And what does every backend copy behind the load balancer need to share to accept it?
+
+Hint 1
+
+`login` is about a dozen lines: find the user by email (no user means `INVALID_CREDENTIALS`), check the password with `passwordEncoder.matches`, then check for `SUSPENDED`, then `return sessionService.issue(user)`. Keep the 401 message in one constant so the cases can't drift apart.
+
+Hint 2
+
+`refresh`: `if (raw == null)` throw first, then `findByTokenHashForUpdate(TokenHasher.sha256(raw))`. Check revoked **before** expired: a stolen old token is revoked, and revoked is the case that needs `revokeAllForUser(user.getId(), now)`. Get `now` from `clock.instant()`, as `issue` does, so the tests can fix the time.
+
+Hint 3
+
+If `aReusedRefreshTokenEndsTheWholeSession` gets a `200` for the newest token, your `revokeAllForUser` ran but was rolled back by the 401 you threw afterwards. Tell `@Transactional` which exception should not undo the work: `noRollbackFor = UnauthorizedException.class`.

@@ -44,6 +44,12 @@ biddly:
     # Starts and closes auctions on time (AuctionLifecycleJob).
     enabled: ${SCHEDULER_ENABLED:true}
     interval-ms: ${SCHEDULER_INTERVAL_MS:5000}
+  auth:
+    jwt:
+      # Signs access tokens (HS256, at least 32 bytes). No default: outside dev and test the app won't start without it.
+      secret: ${JWT_SECRET}
+    # The refresh cookie is sent over HTTPS only. Local development runs on plain HTTP, so the dev profile turns it off.
+    cookie-secure: ${COOKIE_SECURE:true}
 
 ---
 spring:
@@ -54,6 +60,13 @@ spring:
     locations: classpath:db/migration,classpath:db/seed
   jpa:
     show-sql: false
+
+biddly:
+  auth:
+    jwt:
+      # Local development only, and public in Git on purpose: it signs tokens for localhost and nothing else.
+      secret: ${JWT_SECRET:dev-only-signing-key-not-secret-do-not-reuse}
+    cookie-secure: ${COOKIE_SECURE:false}
 
 logging:
   level:
@@ -69,3 +82,7 @@ spring:
 biddly:
   scheduler:
     enabled: false
+  auth:
+    jwt:
+      secret: test-only-signing-key-not-secret-do-not-reuse
+    cookie-secure: false

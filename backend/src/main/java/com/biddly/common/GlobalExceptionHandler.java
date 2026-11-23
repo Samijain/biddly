@@ -42,6 +42,16 @@ public class GlobalExceptionHandler {
         return respond(HttpStatus.CONFLICT, ApiError.of(ex.getCode(), ex.getMessage(), now()));
     }
 
+    @ExceptionHandler(UnauthorizedException.class)
+    ResponseEntity<ApiError> handleUnauthorized(UnauthorizedException ex) {
+        return respond(HttpStatus.UNAUTHORIZED, ApiError.of(ex.getCode(), ex.getMessage(), now()));
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    ResponseEntity<ApiError> handleForbidden(ForbiddenException ex) {
+        return respond(HttpStatus.FORBIDDEN, ApiError.of(ex.getCode(), ex.getMessage(), now()));
+    }
+
     @ExceptionHandler(OptimisticLockingFailureException.class)
     ResponseEntity<ApiError> handleOptimsiticLockingFailure(OptimisticLockingFailureException ex){
         return respond(HttpStatus.CONFLICT, ApiError.of("CONCURRENT_UPDATE", "Someone else updated this auction at the same moment. Refresh and try again.", now()));

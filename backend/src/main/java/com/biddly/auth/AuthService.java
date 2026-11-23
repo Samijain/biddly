@@ -2,28 +2,71 @@ package com.biddly.auth;
 
 import com.biddly.common.BusinessRuleException;
 import com.biddly.common.ConflictException;
+import com.biddly.common.ForbiddenException;
+import com.biddly.common.UnauthorizedException;
 import com.biddly.user.User;
+import com.biddly.user.UserStatus;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.biddly.auth.dto.AccountResponse;
+import com.biddly.auth.dto.LoginRequest;
 import com.biddly.auth.dto.RegisterRequest;
 import com.biddly.user.UserRepository;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
-
 @Service
 public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final SessionService sessionService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, SessionService sessionService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.sessionService = sessionService;
+    }
+
+    /**
+     * CHALLENGE 11b: sign in with an email and a password, and start a session.
+     *
+     * <ul>
+     *   <li>The email is matched in any letter case.</li>
+     *   <li>Unknown email, wrong password, an account without a password (such as the Google-only
+     *       accounts of 11d) or a password BCrypt can't handle: all get the same 401 {@code INVALID_CREDENTIALS},
+     *       "Wrong email or password." (R28). Never a 500, and never a hint about which part was wrong.</li>
+     *   <li>Right password but a {@code SUSPENDED} account: 403 {@code ACCOUNT_SUSPENDED}, and no session.</li>
+     *   <li>Otherwise: {@code sessionService.issue(user)}.</li>
+     * </ul>
+     */
+    @Transactional
+    public IssuedSession login(LoginRequest request) {
+        User user = userRepository.findByEmailIgnoreCase(request.email())
+                .orElseThrow(AuthService::wrongCredentials);
+
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash()))
+            throw wrongCredentials();
+        if (user.getStatus() == UserStatus.SUSPENDED)
+            throw new ForbiddenException("ACCOUNT_SUSPENDED", "Your account has been suspended");
+
+        return sessionService.issue(user);
+    }
+
+    /** One answer for every failed sign-in, so nobody can tell which part was wrong (R28). */
+    private static UnauthorizedException wrongCredentials() {
+        return new UnauthorizedException("INVALID_CREDENTIALS", "Wrong email or password.");
+    }
+
+    /** Ready for you: the account behind a verified access token (GET /auth/me). */
+    @Transactional(readOnly = true)
+    public AccountResponse currentAccount(Long userId) {
+        return userRepository.findById(userId)
+                .map(AccountResponse::from)
+                .orElseThrow(() -> new UnauthorizedException("INVALID_ACCESS_TOKEN", "This account no longer exists."));
     }
 
     /**

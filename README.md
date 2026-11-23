@@ -65,7 +65,7 @@ Open <http://localhost:5180>.
 | PostgreSQL | 5432 | Default |
 | pgAdmin | 5050 | Optional |
 
-Override the backend port with `SERVER_PORT`; all backend settings can be overridden with environment variables (see `backend/src/main/resources/application.yml`).
+Override the backend port with `SERVER_PORT`; all backend settings can be overridden with environment variables (see `backend/src/main/resources/application.yml`). Outside the `dev` profile, `JWT_SECRET` (at least 32 bytes) is required: it signs the access tokens, and every backend copy needs the same one. In dev, the seed accounts (`asha@biddly.dev`, `rohan@biddly.dev`, `meera@biddly.dev`) use the password `biddly-demo`.
 
 ## Tests
 
@@ -89,6 +89,10 @@ cd frontend; npm run lint; npm run typecheck
 | POST | `/api/v1/auctions/{id}/bids` | Done (rules R3-R5; concurrent bids are serialised by a row lock) |
 | GET | `/api/v1/categories` | Done |
 | POST | `/api/v1/auth/register` | Done (BCrypt hash; `409 EMAIL_TAKEN`, `422 PASSWORD_TOO_LONG`) |
+| POST | `/api/v1/auth/login` | Done (access token in the body, refresh token in an `HttpOnly` cookie; `401 INVALID_CREDENTIALS`, `403 ACCOUNT_SUSPENDED`) |
+| POST | `/api/v1/auth/refresh` | Done (rotates the refresh cookie; a reused token ends every session) |
+| POST | `/api/v1/auth/logout` | Done (`204`, revokes the token and deletes the cookie) |
+| GET | `/api/v1/auth/me` | Done (needs `Authorization: Bearer <access token>`) |
 | GET | `/actuator/health` | Done |
 
 Errors always use the same JSON shape:

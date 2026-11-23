@@ -8,6 +8,7 @@ import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
 import { NavLink, Outlet } from 'react-router'
 
+import { useAuth, useSignOut } from '../../features/auth/hooks'
 import { BrandLogo } from '../BrandLogo'
 import { ColorModeToggle } from '../ColorModeToggle'
 
@@ -17,6 +18,36 @@ const navItems = [
   { to: '/', label: 'Home', end: true },
   { to: '/auctions', label: 'Live auctions', end: false },
 ]
+
+/** Nothing while the session is being restored, so the header doesn't flash "Sign in" for a signed-in user. */
+function AccountActions() {
+  const { status, account } = useAuth()
+  const signOut = useSignOut()
+
+  if (status === 'loading') return null
+  if (account) {
+    return (
+      <>
+        <Typography variant="body2" sx={{ fontWeight: 600, display: { xs: 'none', md: 'block' } }}>
+          {account.displayName}
+        </Typography>
+        <Button color="inherit" sx={{ color: 'text.secondary' }} loading={signOut.isPending} onClick={() => signOut.mutate()}>
+          Sign out
+        </Button>
+      </>
+    )
+  }
+  return (
+    <>
+      <Button component={NavLink} to="/sign-in" color="inherit" sx={{ color: 'text.secondary' }}>
+        Sign in
+      </Button>
+      <Button component={NavLink} to="/register" color="inherit" sx={{ color: 'text.secondary' }}>
+        Create account
+      </Button>
+    </>
+  )
+}
 
 export function AppLayout() {
   return (
@@ -53,9 +84,7 @@ export function AppLayout() {
             </Stack>
             <Box sx={{ flexGrow: 1 }} />
             <ColorModeToggle />
-            <Button component={NavLink} to="/register" color="inherit" sx={{ color: 'text.secondary' }}>
-              Create account
-            </Button>
+            <AccountActions />
             <Button variant="contained" startIcon={<AddRounded />} component={NavLink} to="/auctions/new">
               Sell an item
             </Button>

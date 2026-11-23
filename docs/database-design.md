@@ -67,6 +67,14 @@ erDiagram
 | `idx_bids_bidder` | "My bids" (US-24) and the foreign-key lookup |
 | `fk_auctions_leading_bidder` | The leader is a real user; `NULL` until the first bid |
 
+**`refresh_tokens` (V5, Challenge 11b):** one row per session.
+- Columns: `user_id`, `token_hash`, `created_at`, `expires_at`, `revoked_at`.
+- `token_hash` is the SHA-256 of the cookie value, never the raw token (`uq_refresh_tokens_hash`).
+- `ck_refresh_tokens_expiry` makes sure a token expires after it was created.
+- `fk_refresh_tokens_user` uses `ON DELETE CASCADE`: deleting a user deletes their sessions.
+- The partial index `idx_refresh_tokens_user_active` covers only rows where `revoked_at IS NULL`. It's for "end every session of this user" (reuse detection).
+- Password and Google sign-ins share the table.
+
 `auctions.current_price` and `leading_bidder_id` are a **denormalised copy** of the highest bid, so lists don't need to scan `bids`. They must change in the same transaction as the bid insert.
 
 ## Planned tables
@@ -74,7 +82,6 @@ erDiagram
 | Table | Milestone | Notes |
 |---|---|---|
 | `users` changes | M5 | `password_hash` stays nullable: a Google-only account has none. **V4 (Challenge 11a) adds `role`** (`USER` or `ADMIN`, default `USER`, `ck_users_role`). Still to come: `google_subject` (Google's account ID, unique when present; 11d) and `seller_status` (`NONE`, `PENDING`, `APPROVED`, `REJECTED`; R32). Existing seed sellers start as `APPROVED`. A check makes sure every account has at least one way to sign in: a password or a Google ID |
-| `refresh_tokens` | M5 | `user_id`, `token_hash`, `expires_at`, `revoked_at`. Store a hash, never the raw token. The same table serves password and Google sign-ins |
 | `idempotency_keys` | Later | Not needed yet: Challenge 10 stores the key on `bids.idempotency_key` (V3), unique per bidder. A separate table or Redis with a TTL becomes worth it if keys must expire or cover other endpoints |
 | `watchlist` | M7 | Composite PK `(user_id, auction_id)` |
 | `notifications` | M7 | `read_at` nullable |

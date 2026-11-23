@@ -963,3 +963,78 @@ The cheap checks run before the 100 ms hash.
 - The sign-up enumeration trade-off is now recorded in `business-rules.md`.
 
 **Results:** backend 114/114 (13 for 11a), frontend 23/23. Next is 11b: sign in, the JWT access token, the refresh cookie and sign out. Read primer sections 4 and 5 first.
+---
+
+## Session 28 - 2026-11-23 - Challenge 11b starter: sign in, tokens and sign out
+
+You answered primer sections 4 and 5, so I set up Challenge 11b. Your code is `AuthService.login`, `SessionService.refresh` and `SessionService.logout`; everything around them is ready.
+
+**What I prepared:**
+- **Tokens:**
+  - The access JWT is signed with HS256 by Spring Security's own JWT support (the OAuth 2 resource server library). It isn't hand-written.
+  - The key comes from `JWT_SECRET`. Production has no default, and a key under 32 bytes stops the app from starting.
+  - The dev and test keys are in `application.yml` on purpose: they are public and must never be used anywhere else.
+- **Refresh tokens:**
+  - 32 random bytes from `SecureRandom`.
+  - The database stores only their SHA-256 hash, in the V5 table `refresh_tokens`. V5 is already applied to your dev database: your backend's automatic restart ran it.
+- **The cookie:**
+  - `HttpOnly`, so scripts can't read it.
+  - `SameSite=Strict`, so other sites can't make the browser send it.
+  - `Path=/api/v1/auth`, so it travels only to the auth endpoints.
+  - `Secure` everywhere except dev, which runs on plain `http://localhost`.
+- **Only `/auth/me` is protected so far.** Everything else still lets every request through until 11c.
+- **Frontend:**
+  - The access token is kept only in memory.
+  - The session is restored with one refresh call on page load.
+  - Refreshes are single-flight: React's StrictMode runs effects twice in development, which would send the same refresh cookie twice and trip the reuse detection you're about to build.
+  - Auth requests never carry the access token, because an expired one in the header would make Spring Security answer 401 before `/refresh` could run.
+- **Demo password:** the dev seed gives Asha, Rohan and Meera the password `biddly-demo`. It's public on purpose and exists only in dev.
+
+**How I checked the tests:** as in 11a: back up the stubs, write a temporary solution, enable the tests, run them, restore the files.
+- The temporary solution passed all 34 auth tests.
+- **Without `noRollbackFor`, the reuse test failed.** The reuse check revokes every session and then throws a 401, and by default that exception rolled the revocations back. This is Hint 3.
+- **`matches` doesn't throw for long passwords.** In Spring Security 7.1.1, a 75-byte password makes `BCryptPasswordEncoder.matches` return `false`, so sign-in needs no byte check. Only `encode` throws. The 75-byte test stays as a guard.
+
+**Results:** backend 140 tests pass with 21 skipped; frontend 29/29, with type check and lint clean.
+
+**Your running backend** has to be restarted: there's a new library (the OAuth 2 resource server).
+---
+
+## Session 29 - 2026-11-24 - Challenge 11b: sign in, tokens and sign out
+
+You implemented `AuthService.login`, `SessionService.refresh` and `SessionService.logout`.
+
+**`login` took five rounds:**
+
+| Round | Login tests passing | What was wrong |
+|---|---|---|
+| 1 | 2 of 10 | `encode(password).equals(hash)` is never true (a new salt each time), so the password was never checked and a wrong one signed in; wrong exception types |
+| 2 | 2 of 10 | A case-sensitive `getEmail().equals(...)` refused `Priya@Example.com`; the suspension branch was unreachable (`else if (!check && ...)` after `if (!check) throw`) |
+| 3 | 3 of 10 | An unknown email crashed with a `NullPointerException` (the user was used before the null check); the wrong message |
+| 4 | 10 of 10 | Correct; leftover redundant conditions |
+| 5 | 10 of 10 | Refactored with `orElseThrow` and one `wrongCredentials()` factory |
+
+**`refresh` took three rounds:**
+1. It wouldn't compile.
+2. The lookup used the raw token instead of its hash, `revokeAllForUser` got the token's id instead of the user's, and expired was checked before revoked.
+3. All passing, including `noRollbackFor`.
+
+**`logout` took three rounds.** It threw on a missing or unknown token, then crashed hashing `null`. It ended as a `null` guard plus `ifPresent(token -> token.revoke(...))`.
+
+**Lessons:**
+- **`matches`, never `encode` + `equals`.** A salted hash is different every time; `matches` reads the salt back out of the stored hash.
+- **Let `Optional` decide.** `orElseThrow` and `ifPresent` remove every `null` variable, and with them both `NullPointerException`s from this session.
+- **A rule that says "never fails" means no `throw` at all.** Sign-out with nothing to sign out is already done.
+- **Check order is part of the security.** Password before suspension, so a wrong password reveals nothing. Revoked before expired, so an old stolen token still sets off the alarm.
+
+**Review answers** (average about 3.5/10). The full model answers are in the chat.
+- Q1 (3): **slowness only protects guessable secrets.** 256 random bits can't be brute-forced, and SHA-256 is deterministic, so you can look a token up by its hash.
+- Q2 (6): right about the rollback. It's Spring's rule (unchecked exceptions roll back), and without `noRollbackFor` the thief's newest token survives.
+- Q3 (2): backwards. The lock queues the second tab, which then finds the token rotated and looks exactly like a thief, so every session ends. The fixes are a grace period or tabs taking turns.
+- Q4 (4): inverted. A fast answer means no account exists; a slow one means it does. The fix is a dummy-hash comparison.
+- Q5 (2): not the filter chain. `SameSite=Strict` keeps the cookie off cross-site requests, and header-based auth can't be forged from another site.
+- Q6 (4): a cookie would make every endpoint open to CSRF. Accepting an access token needs only the shared `JWT_SECRET`, no database.
+
+The Q3 and Q4 trade-offs are now recorded in `business-rules.md`.
+
+**Results:** backend 142/142 with nothing skipped (34 for 11b); frontend 29/29. Next is 11c: protect the rest of the API, take the seller and bidder from the token, and add "My bids".
